@@ -404,7 +404,7 @@ POST /Contents/GetLibrary
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `Identifier` | string | `"Homepage"` 首页，`"Discussions"` 讨论区，`"Experiments"` 实验区 |
+| `Identifier` | string | `"Homepage"` 首页，`"Discussions"` 讨论区，`"Experiments"` 实验区 ,`Workspace` 工作区 |
 | `Language` | string | `"Chinese"` 或 `"English"` |
 
 ### 响应
