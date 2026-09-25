@@ -9,6 +9,8 @@ POST https://physics-api-cn.turtlesim.com/Users/Authenticate
 Content-Type: application/json
 ```
 
+外层返回结构以及登录 `Data` 中 `User`、`Statistic`、`Backpack`、`Library` 等字段说明见 [`responses.md`](responses.md#3-登录-usersauthenticate)。
+
 ## 1. 邮箱登录
 
 使用注册邮箱和密码登录，是最常用的登录方式。
@@ -29,7 +31,7 @@ Content-Type: application/json
 {
   "Login": "user@example.com",
   "Password": "mypassword",
-  "Version": 2411,
+  "Version": 2609,
   "Device": {
     "Identifier": "7db01528cf13e2199e141c402d79190e",
     "Language": "Chinese"
@@ -90,7 +92,7 @@ Content-Type: application/json
 {
   "Login": null,
   "Password": null,
-  "Version": 2411,
+  "Version": 2609,
   "Device": {
     "Identifier": "7db01528cf13e2199e141c402d79190e",
     "Language": "Chinese"
@@ -119,7 +121,7 @@ x-API-AuthCode: <已获取的AuthCode>
 {
   "Login": null,
   "Password": null,
-  "Version": 2411,
+  "Version": 2609,
   "Device": {
     "Identifier": "7db01528cf13e2199e141c402d79190e",
     "Language": "Chinese"
@@ -163,9 +165,9 @@ x-API-AuthCode: <AuthCode>
 
 ## Version 字段说明
 
-`Version` 字段对应物理实验室客户端版本号，格式为 `YYMM`：
+`Version` 字段对应物理实验室客户端版本整数，常见格式为 `YYMM`：
 
-- `2411` — 2024 年 11 月版本（常用默认值）
+- 示例值应与调用方实际客户端版本一致；下面的历史值仅用于识别格式，不作为建议默认值。
 - `2406` — 2024 年 6 月版本
 
-版本过旧可能导致登录被拒绝。如果不确定当前版本，可先尝试 `2411`，若失败再尝试其他近期版本号。
+不要反复猜测版本号或把历史示例当作长期可用默认值。对接现有客户端时读取其实际版本；自建调用方应按服务端兼容约定设置，并在错误响应中检查 `Message`。

@@ -1,22 +1,24 @@
 # 评论接口详解
 
-评论接口位于 `Contents/` 路径下，提供对实验/讨论作品的评论发表、获取、删除功能。所有接口均需认证。
+评论接口由 `Messages` 控制器提供，提供对实验/讨论作品或用户留言板的评论发表、获取、删除功能。需要有效用户会话；发表还要求账号已绑定。
 
-## 1. 获取评论列表（Contents/GetComments）
+本文的成功响应示例基于当前 `Comment`/`CommentsPackage` 模型；通用数组解包、时间字段和字段字典见 [`responses.md`](responses.md#6-评论返回)。
+
+## 1. 获取评论列表（Messages/GetComments）
 
 获取指定作品的评论列表。
 
 ### 请求
 
 ```http
-POST /Contents/GetComments
+POST /Messages/GetComments
 ```
 
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018",
-  "Category": "Experiment",
+  "TargetID": "16a627bdb25f77131ba28018",
+  "TargetType": "Experiment",
   "Skip": 0,
   "Take": 16
 }
@@ -24,77 +26,77 @@ POST /Contents/GetComments
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `ContentID` | string | 内容 ID |
-| `Category` | string | `"Experiment"` 或 `"Discussion"` |
+| `TargetID` | string | 目标内容或用户 ID |
+| `TargetType` | string | `"Experiment"`、`"Discussion"` 或 `"User"` |
 | `Skip` | int | 跳过条数（分页偏移） |
 | `Take` | int | 获取条数（默认 16） |
 
 ### 响应
+
+`Data` 是评论包对象而不是裸数组，主要字段为 `Count`（总评论数）、`Target`（目标用户或作品摘要）和 `Comments`（本页评论数组）。
 
 ```json
 {
   "Status": 200,
   "Message": "",
   "Data": {
-    "$type": "...",
-    "$values": [
+    "Count": 23,
+    "Target": { "ID": "16a627bdb25f77131ba28018", "Category": "Experiment", "Subject": "作品标题" },
+    "Comments": [
       {
-        "ID": "comment_id_string",
-        "ContentID": "16a627bdb25f77131ba28018",
-        "Content": "评论内容文本",
-        "Author": {
-          "ID": "...",
-          "Nickname": "评论者昵称",
-          "Avatar": 0,
-          "AvatarRegion": 0,
-          "Level": 1
-        },
-        "SendDate": "2024-01-01T00:00:00Z",
-        "Floor": 1,
-        "IsEdited": false
+        "TargetID": "16a627bdb25f77131ba28018",
+        "ID": "<comment-id>",
+        "UserID": "<user-id>",
+        "Nickname": "评论者",
+        "Verification": null,
+        "Avatar": 0,
+        "Content": "评论内容",
+        "Language": "Chinese",
+        "Timestamp": 1720000000000,
+        "Hidden": false,
+        "Flags": [],
+        "Replies": []
       }
     ]
   }
 }
 ```
 
-> 列表数据在 `Data["$values"]` 数组中。
-
 ### Comment 字段说明
 
 | 字段 | 说明 |
 |------|------|
+| `TargetID` | 评论所属作品或用户 ID |
 | `ID` | 评论唯一 ID |
-| `ContentID` | 所属内容 ID |
+| `UserID` / `Nickname` | 评论者账号 ID 与昵称 |
 | `Content` | 评论正文 |
-| `Author` | 评论者信息 |
-| `SendDate` | 评论时间（ISO 8601） |
-| `Floor` | 楼层号 |
-| `IsEdited` | 是否被编辑过 |
+| `Timestamp` | Unix 毫秒时间戳 |
+| `Replies` | 子评论数组，元素是 `CommentContent` |
+| `Flags` / `Hidden` | 特殊标记与隐藏状态 |
 
-## 2. 发表评论（Contents/PostComment）
+## 2. 发表评论（Messages/PostComment）
 
 在指定作品或用户留言板下发表评论。
 
 ### 请求
 
 ```http
-POST /Contents/PostComment
+POST /Messages/PostComment
 ```
 
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018",
-  "Category": "Experiment",
+  "TargetID": "16a627bdb25f77131ba28018",
+  "TargetType": "Experiment",
   "Content": "评论内容文本"
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `ContentID` | string | 内容 ID |
-| `Category` | string | `"Experiment"` 或 `"Discussion"` 或 `"User"` |
+| `TargetID` | string | 目标内容或用户 ID |
+| `TargetType` | string | `"Experiment"`、`"Discussion"` 或 `"User"` |
 | `Content` | string | 评论内容（纯文本） |
 
 ### 响应
@@ -104,15 +106,22 @@ POST /Contents/PostComment
   "Status": 200,
   "Message": "",
   "Data": {
-    "ID": "new_comment_id",
-    "ContentID": "16a627bdb25f77131ba28018",
+    "TargetID": "16a627bdb25f77131ba28018",
+    "ID": "<new-comment-id>",
+    "UserID": "<current-user-id>",
+    "Nickname": "评论者",
+    "Avatar": 0,
     "Content": "评论内容文本",
-    "Author": { ... },
-    "SendDate": "2024-01-01T00:00:00Z",
-    "Floor": 2
+    "Language": "Chinese",
+    "Timestamp": 1720000000000,
+    "Hidden": false,
+    "Replies": [],
+    "Flags": []
   }
 }
 ```
+
+`Data` 是新建评论本身（`Comment`），不是带 `Author`、`Floor` 的对象。字段说明见本页的评论列表结构。
 
 ### 注意事项
 
@@ -121,29 +130,27 @@ POST /Contents/PostComment
 - 匿名用户无法发表评论
 - 被作者拉黑后可能无法评论
 
-## 3. 删除评论（Contents/RemoveComment）
+## 3. 删除评论（Messages/RemoveComment）
 
 删除指定评论。仅评论作者或内容作者或管理员可删除。
 
 ### 请求
 
 ```http
-POST /Contents/RemoveComment
+POST /Messages/RemoveComment
 ```
 
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018",
-  "Category": "Experiment",
+  "TargetType": "Experiment",
   "CommentID": "comment_id_string"
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `ContentID` | string | 内容 ID |
-| `Category` | string | `"Experiment"` 或 `"Discussion"` 或 `"User"` |
+| `TargetType` | string | `"Experiment"`、`"Discussion"` 或 `"User"` |
 | `CommentID` | string | 要删除的评论 ID |
 
 ### 响应
@@ -163,23 +170,6 @@ POST /Contents/RemoveComment
 - 管理员可以删除任何评论
 - 无权限删除会返回 `Permission.Denied` 错误
 
-## 4. 获取讨论区评论（Contents/GetDiscussionComments）已废弃
+## 4. 已移除的旧路径
 
-获取讨论区帖子的评论列表，与 `GetComments` 类似但专用于讨论区。
-
-### 请求
-
-```http
-POST /Contents/GetDiscussionComments
-```
-
-**请求体：**
-```json
-{
-  "ContentID": "discussion_content_id",
-  "Skip": 0,
-  "Take": 16
-}
-```
-
-> 注意：讨论区评论接口不需要 `Category` 字段。
+`Contents/GetDiscussionComments` 不存在于当前服务端控制器中。讨论作品评论使用 `Messages/GetComments`，请求的 `TargetType` 设为 `Discussion`，其响应与本页的评论包相同。

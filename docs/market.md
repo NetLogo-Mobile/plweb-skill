@@ -40,18 +40,17 @@ POST /Contents/GetLibrary
   "Status": 200,
   "Message": "",
   "Data": {
+    "ID": "<library-id>",
     "Identifier": "Discussions",
+    "Subject": "讨论区",
     "Language": "Chinese",
-    "Categories": {
-      "$values": [
-        {
-          "Name": "板块名称",
-          "Identifier": "板块标识符",
-          "Tags": { "$values": ["标签1", "标签2"] }
-        }
-      ]
-    },
-    "Announcements": { "$values": [ ... ] }
+    "IsNavigation": false,
+    "IsDevelopment": false,
+    "Blocks": [
+      { "Type": 0, "Header": "最新讨论", "TargetLink": null,
+        "FetchSource": "...", "FetchConfiguration": {}, "Permission": null,
+        "Locations": [], "Summaries": [] }
+    ]
   }
 }
 ```
@@ -62,8 +61,11 @@ POST /Contents/GetLibrary
 |------|------|
 | `Data.Identifier` | 当前板块标识符 |
 | `Data.Language` | 语言 |
-| `Data.Categories` | 板块下的分类列表 |
-| `Data.Announcements` | 公告列表 |
+| `Data.Subject` | 页面标题 |
+| `Data.IsNavigation` / `IsDevelopment` | 导航页及开发内容标记 |
+| `Data.Blocks` | 多态内容块数组，块有 `Summaries`、`Locations` 和配置字段 |
+
+不同 block 类型会带不同扩展字段；没有固定 `Categories` 或 `Announcements` 顶层字段。字段详情见 `LibraryBlock` 及派生类型。完整解析说明见 [`responses.md`](responses.md#8-用户资料页与社区库)。
 
 ## 2. 获取用户资料页（Contents/GetProfile）
 
@@ -121,6 +123,8 @@ POST /Contents/GetProfile
 
 每个列表中的元素结构与 `QueryExperiments` 返回的 `ExperimentSummary` 相同。
 
+`Data` 的确切字段说明见 [`responses.md`](responses.md#8-用户资料页与社区库)。
+
 ## 3. 获取社区首页（GET /Users）
 
 获取社区首页的初始化数据，无需认证（匿名可访问）。
@@ -137,106 +141,12 @@ GET /Users
 {
   "Status": 200,
   "Message": "",
-  "Data": {
-    "Version": "2.4.11",
-    "Announcement": "公告内容",
-    "Homepage": { ... },
-    "Library": { ... }
-  }
+  "Data": { "ID": "<library-id>", "Identifier": "Homepage", "Subject": "首页", "Language": "Chinese", "IsNavigation": true, "IsDevelopment": false, "Blocks": [] }
 }
 ```
 
-### 字段说明
+`Data` 是与 `Contents/GetLibrary` 相同的 `Library` 类型，不是含 `Version`/`Announcement`/`Homepage`/`Library` 的额外包装。
 
-| 字段 | 说明 |
-|------|------|
-| `Data.Version` | 当前服务器版本 |
-| `Data.Announcement` | 全站公告 |
-| `Data.Homepage` | 首页内容 |
-| `Data.Library` | 社区库结构 |
+## 当前控制器中不存在的旧路径
 
-## 4. 获取讨论区帖子（Contents/GetDiscussion）
-
-获取讨论区帖子的完整内容。
-
-### 请求
-
-```http
-POST /Contents/GetDiscussion
-```
-
-**请求体：**
-```json
-{
-  "ContentID": "discussion_content_id"
-}
-```
-
-### 响应
-
-返回讨论帖的完整内容，包括标题、正文、作者、评论数等信息。
-
-## 5. 获取公告（Contents/GetAnnouncement）
-
-获取指定公告的详细内容。
-
-### 请求
-
-```http
-POST /Contents/GetAnnouncement
-```
-
-**请求体：**
-```json
-{
-  "ID": "announcement_id_string"
-}
-```
-
-### 响应
-
-返回公告的标题、内容、发布时间等信息。
-
-## 6. 获取通知消息（Notifications/Get）
-
-获取当前用户的通知消息列表（与站内信不同，通知为系统推送的活动通知）。
-
-### 请求
-
-```http
-POST /Notifications/Get
-```
-
-**请求体：**
-```json
-{
-  "Skip": 0,
-  "Take": 16
-}
-```
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `Skip` | int | 跳过条数 |
-| `Take` | int | 获取条数 |
-
-### 响应
-
-```json
-{
-  "Status": 200,
-  "Message": "",
-  "Data": {
-    "$values": [
-      {
-        "ID": "notification_id",
-        "Title": "通知标题",
-        "Content": "通知内容",
-        "SendDate": "2024-01-01T00:00:00Z",
-        "IsRead": false,
-        "Category": "活动"
-      }
-    ]
-  }
-}
-```
+`Contents/GetDiscussion`、`Contents/GetAnnouncement` 和 `Notifications/Get` 不在当前 `Quantum API/Controllers` 路由中，不要调用这些旧文档路径。讨论作品通过 `Contents/QueryExperiments`、`Contents/GetSummary` 和 `Contents/GetExperiment`（类别设为 `Discussion`）读取；收件箱消息/通知使用 `Messages/GetMessages`。这些端点的 `Data` 结构见 [`responses.md`](responses.md)。

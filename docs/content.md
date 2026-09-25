@@ -64,55 +64,49 @@ POST /Contents/QueryExperiments
   "Status": 200,
   "Message": "",
   "Data": {
-    "$type": "Quantum.Models.Contents.ExperimentSummary[], Quantum Models",
+    "$type": "<runtime type hint>",
     "$values": [
       {
+        "ID": "16a627bdb25f77131ba28018",
+        "Category": "Experiment",
+        "Subject": "实验标题",
+        "Image": 0,
+        "ImageRegion": 1,
+        "User": { "ID": "<user-id>", "Nickname": "作者昵称", "Avatar": 0 },
+        "Visibility": 0,
         "Type": 0,
         "ParentID": null,
-        "ParentName": null,
-        "ParentCategory": null,
-        "ContentID": "16a627bdb25f77131ba28018",
+        "ContentID": "<experiment-save-id>",
         "Editor": null,
         "Coauthors": [],
-        "Description": ["前言", "", "正文内容..."],
-        "Title": "实验标题",
-        "Author": {
-          "ID": "...",
-          "Nickname": "作者昵称"
-        },
-        "Tags": ["精选"],
-        "Languages": ["Chinese"],
-        "Summary": "实验摘要",
-        "Thumbnail": "...",
-        "Stars": 100,
-        "Comments": 10,
-        "Derivatives": 5,
-        "PublishDate": "2024-01-01T00:00:00Z",
-        "UpdateDate": "2024-01-02T00:00:00Z"
+        "Description": ["作品说明"],
+        "LocalizedDescription": null,
+        "Tags": ["高中"],
+        "ModelID": null,
+        "ModelName": null,
+        "ModelTags": [],
+        "Version": 1,
+        "Language": "Chinese",
+        "Visits": 0,
+        "Stars": 0,
+        "Supports": 0,
+        "Remixes": 0,
+        "Comments": 0,
+        "Price": 0,
+        "Popularity": 0,
+        "CreationDate": 1720000000000,
+        "UpdateDate": 1720000000000,
+        "SortingDate": 1720000000000
       }
     ]
   }
 }
 ```
 
-> **重要**：列表数据在 `Data["$values"]` 数组中，不是直接在 `Data` 中。
+`Data` 也可能直接是数组，不带 `$type`/`$values` 包装。列表没有额外的 `Pages` 或 `Count` 字段。
 
-### ExperimentSummary 字段说明
+列表元素是 `ExperimentSummary`。重点字段是 `ID`（摘要 ID）、`Category`（作品类别）、`Subject`（标题）、`User`（作者简表）、`ContentID`（可能为空的实验保存 ID）、`Description`、`Tags`、`Visibility` 和各项计数。实际字段完整说明见 [`responses.md`](responses.md#4-作品数据)。此处不使用旧示例中的 `Title`、`Author`、`Thumbnail`、`Summary` 或 `PublishDate`，这些不是当前模型字段名。
 
-| 字段 | 说明 |
-|------|------|
-| `ContentID` | 内容唯一 ID（后续获取详情用） |
-| `Title` | 作品标题 |
-| `Description` | 描述内容数组 |
-| `Author` | 作者信息（ID、Nickname） |
-| `Tags` | 标签列表 |
-| `Summary` | 摘要文本 |
-| `Stars` | 点赞数 |
-| `Comments` | 评论数 |
-| `Derivatives` | 衍生作品数 |
-| `PublishDate` | 发布时间 |
-| `UpdateDate` | 更新时间 |
-| `ParentID` | 父作品 ID（如果是衍生作品） |
 
 ## 2. 获取实验详情（Contents/GetExperiment）
 
@@ -127,29 +121,11 @@ POST /Contents/GetExperiment
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018"
+  "ContentID": "<experiment-save-id>"
 }
 ```
 
-> 如果传入的是实验 ID（而非 ContentID），需同时提供 `Category` 字段，接口会先查询摘要获取 ContentID。
-
-### 响应
-
-```json
-{
-  "Status": 200,
-  "Message": "",
-  "Data": {
-    "ContentID": "16a627bdb25f77131ba28018",
-    "Title": "实验标题",
-    "Content": "{ ... 序列化的实验模型 JSON ... }",
-    "Type": 0,
-    "Version": "..."
-  }
-}
-```
-
-`Data.Content` 是序列化的实验模型字符串，包含电路元件、连接关系、参数等完整信息。修改实验内容时需解析并保留原有结构。
+这里的 `ContentID` 是 `ExperimentSummary.ContentID` 保存 ID，不是作品摘要的 `ID`。成功时 `Data` 是单个 `Experiment` 保存对象，字段为 `ID`、`Type`、`Components`、`Subject`、`StatusSave`、`CameraSave`、`Version`、`CreationDate`、`Paused`、`Summary`、`Plots`。其中 `StatusSave`/`CameraSave` 是客户端保存数据，不是 `Content` 字符串。字段解释和样例见 [`responses.md`](responses.md#43-完整保存-contentsgetexperiment)。
 
 ## 3. 获取实验摘要（Contents/GetSummary）
 
@@ -164,7 +140,7 @@ POST /Contents/GetSummary
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018",
+  "ContentID": "<summary-ID>",
   "Category": "Experiment"
 }
 ```
@@ -176,7 +152,7 @@ POST /Contents/GetSummary
 
 ### 响应
 
-返回该内容的详细摘要信息，包括标题、描述、作者、标签、统计数据等。
+成功时 `Data` 是一个 `ExperimentSummary` 对象（直接对象，不是 `Data.Summary` 包装）。请求使用 `ContentID`；其返回字段与列表元素相同，见 [`responses.md`](responses.md#42-摘要-contentsgetsummary)。
 
 ## 4. 获取衍生作品（Contents/GetDerivatives）
 
@@ -191,14 +167,14 @@ POST /Contents/GetDerivatives
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018",
+  "ContentID": "<summary-ID>",
   "Category": "Experiment"
 }
 ```
 
 ### 响应
 
-返回衍生作品列表，结构与 `QueryExperiments` 的 `Data["$values"]` 相同。
+`Data` 是 `ContentPackage`：主要包含 `Experiments` 分组字典、`Summary`（仅 `WithSummary=true` 时填充）、`Parent`、`Model`、`Supporters` 和 `Survey`。见 [`responses.md`](responses.md#44-衍生作品-contentsgetderivatives)。
 
 ## 5. 获取支持者列表（Contents/GetSupporters）
 
@@ -213,7 +189,7 @@ POST /Contents/GetSupporters
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018",
+  "ContentID": "<summary-ID>",
   "Category": "Experiment",
   "Skip": 0,
   "Take": 10
@@ -229,31 +205,16 @@ POST /Contents/GetSupporters
 
 ### 响应
 
-```json
-{
-  "Status": 200,
-  "Message": "",
-  "Data": {
-    "$values": [
-      {
-        "ID": "...",
-        "Nickname": "支持者昵称",
-        "Avatar": 0,
-        "Level": 1
-      }
-    ]
-  }
-}
-```
+`Data` 是 `UserSummary[]`（可能直接数组或 `$values` 包装），每项是 `ID`、`Nickname`、`Signature`、`Avatar`、`AvatarRegion`、`Decoration`、`Verification` 等简表字段。不是 `{Supporters: [...]}` 包装。更多说明见 [`responses.md`](responses.md#45-支持者-contentsgetsupporters)。
 
-## 6. 点赞/取消点赞（Contents/Star）
+## 6. 点赞/取消点赞（Contents/StarContent）
 
 为指定作品点赞或取消点赞。
 
 ### 请求
 
 ```http
-POST /Contents/Star
+POST /Contents/StarContent
 ```
 
 **请求体：**
@@ -261,7 +222,8 @@ POST /Contents/Star
 {
   "ContentID": "16a627bdb25f77131ba28018",
   "Category": "Experiment",
-  "Action": 1
+  "Status": true,
+  "Type": 0
 }
 ```
 
@@ -269,34 +231,10 @@ POST /Contents/Star
 |------|------|------|
 | `ContentID` | string | 内容 ID |
 | `Category` | string | `"Experiment"` 或 `"Discussion"` |
-| `Action` | int | `1` 点赞，`0` 取消点赞 |
+| `Status` | bool | `true` 点赞，`false` 取消点赞 |
+| `Type` | int | `0` 普通点赞，`1` 支持（需要绑定账号及足够金币） |
 
-## 7. 确认发布实验（Contents/ConfirmExperiment）
-
-确认实验发布，为底层接口，通常配合 `UploadImage` 使用。
-
-### 请求
-
-```http
-POST /Contents/ConfirmExperiment
-```
-
-**请求体：**
-```json
-{
-  "SummaryID": "summary_id_string",
-  "Category": "Experiment",
-  "ImageCounter": 0
-}
-```
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `SummaryID` | string | 摘要 ID |
-| `Category` | string | `"Experiment"` 或 `"Discussion"` |
-| `ImageCounter` | int | 图片计数器 |
-
-## 8. 删除实验（Contents/RemoveExperiment）
+## 7. 删除实验（Contents/RemoveExperiment）
 
 删除已发布的实验作品。
 
@@ -309,39 +247,22 @@ POST /Contents/RemoveExperiment
 **请求体：**
 ```json
 {
-  "ContentID": "16a627bdb25f77131ba28018",
+  "SummaryID": "16a627bdb25f77131ba28018",
   "Category": "Experiment"
 }
 ```
 
-## 9. 上传图片（Contents/UploadImage）
+## 8. 确认作品封面（Contents/ConfirmExperiment）
 
-上传实验封面或内容图片。
-
-### 请求
+当前服务端没有 `Contents/UploadImage` 路由。`ConfirmExperiment` 接受 `SummaryID`、`Category` 和 `Image`；需要上传新文件时，还会读取请求中的二进制文件与 `Extension`，这不是把 Base64 图片放进 JSON 的接口。上传协议依赖客户端封装，调用前应核对 `ContentController.ConfirmExperiment` 与 `BaseController.UploadStorage`，不要照搬旧的 `UploadImage` 示例。
 
 ```http
-POST /Contents/UploadImage
+POST /Contents/ConfirmExperiment
 ```
 
-**请求体：**
-```json
-{
-  "ContentID": "16a627bdb25f77131ba28018",
-  "Category": "Experiment",
-  "Image": "base64编码的图片数据",
-  "Index": 0
-}
-```
+JSON 元数据至少包括 `SummaryID`（24 位作品 ID）、`Category`（如 `Experiment`）和 `Image`（图片序号）；仅作者或有权限的管理账号可以更新封面。
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `ContentID` | string | 内容 ID |
-| `Category` | string | `"Experiment"` 或 `"Discussion"` |
-| `Image` | string | Base64 编码的图片数据 |
-| `Index` | int | 图片索引 |
-
-## 10. 获取用户资料页（Contents/GetProfile）
+## 9. 获取用户资料页（Contents/GetProfile）
 
 获取用户主页的展示内容，包括精选作品、热门作品、最新作品等。
 

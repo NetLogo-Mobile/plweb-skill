@@ -20,14 +20,16 @@
 | `0` | 最新发布（按发布时间降序） |
 | `1` | 最热门（按点赞数降序） |
 
-## 3. Star Action（点赞操作）
+## 3. Star Type（互动类型）
 
-用于 `Contents/Star` 接口的 `Action` 字段。
+用于 `Contents/StarContent` 接口的 `Type` 字段。
 
 | 值 | 说明 |
 |----|------|
-| `1` | 点赞 |
-| `0` | 取消点赞 |
+| `0` | 普通点赞（Star） |
+| `1` | 支持（Support；可能消耗金币，且不能支持自己的作品） |
+
+是否添加或取消点赞由布尔字段 `Status` 控制：`true` 添加，`false` 取消。
 
 ## 4. Follow Action（关注操作）
 

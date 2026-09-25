@@ -2,7 +2,7 @@
 
 用户接口位于 `Users/` 路径下，提供用户资料查询、关注关系管理、个人信息修改、管理员操作等功能。
 
-所有接口（除 `Authenticate` 外）均需在请求头中携带 `x-API-Token` 和 `x-API-AuthCode`。
+需要用户身份的接口通过 `x-API-Token` 和 `x-API-AuthCode` 认证；可公开访问的读取操作是否接受匿名会话取决于控制器权限检查。
 
 ## 1. 获取用户信息（Users/GetUser）
 
@@ -28,53 +28,21 @@ POST /Users/GetUser
 }
 ```
 
-> 两个字段二选一，同时提供时以 `Name` 为准。
+> 推荐只传一个字段；两者同时传入时控制器最终按 `ID` 查询，`Name` 只在未传 `ID` 时生效。
 
 ### 响应
 
-```json
-{
-  "Status": 200,
-  "Message": "",
-  "Data": {
-    "User": {
-      "ID": "5d0f4390ca68215906d1a0fd",
-      "Nickname": "test",
-      "Signature": null,
-      "Verification": null,
-      "Avatar": 0,
-      "AvatarRegion": 0,
-      "Decoration": 0,
-      "Gold": 350,
-      "Diamond": 0,
-      "Fragment": 0,
-      "Level": 1,
-      "Experience": 0,
-      "Prestige": 0
-    },
-    "Statistic": {
-      "ExperimentCount": 0,
-      "FollowerCount": 0,
-      "FollowingCount": 0
-    },
-    "Backpack": { ... },
-    "Bonuses": [ ... ],
-    "UserToken": null,
-    "Relation": null,
-    "TargetLink": null
-  }
-}
-```
+成功时 `Data` 是 `UserPackage`：其中 `User` 是目标用户，`Statistic` 是统计数据，`Relation` 是当前登录者与目标用户的关系枚举；`Backpack`、`Bonuses`、`UserToken`、`TargetLink` 是可空扩展。字段级 JSON 结构和枚举说明见 [`responses.md`](responses.md#5-用户接口返回)。
 
 ### 字段说明
 
 | 字段 | 说明 |
 |------|------|
-| `Data.User` | 用户基本信息 |
-| `Data.Statistic` | 用户统计数据（作品数、粉丝数、关注数） |
-| `Data.Backpack` | 背包物品 |
-| `Data.Bonuses` | 奖励列表 |
-| `Data.Relation` | 当前登录用户与目标用户的关系（是否已关注等） |
+| `Data.User` | 用户模型；具体字段取决于权限和接口 |
+| `Data.Statistic` | `UserStatistic` 统计及活动数据 |
+| `Data.Backpack` | 背包模型或 `null` |
+| `Data.Bonuses` | 本次操作奖励或 `null` |
+| `Data.Relation` | `RelationType` 数值：0 None、1 Following、2 Followed、3 Friend、4 Blocking、5 Blocked、6 BothBlocked |
 
 ## 2. 关注/取关用户（Users/Follow）
 
@@ -105,9 +73,11 @@ POST /Users/Follow
 {
   "Status": 200,
   "Message": "",
-  "Data": null
+  "Data": true
 }
 ```
+
+`Data` 是 `bool`（关系变更是否成功），顶层 `Message` 可能携带关系提示；失败时查 `Status`/`Message`，而不是把 `Data` 解析为关系对象。
 
 ## 3. 获取关注/粉丝列表（Users/GetRelations）
 
@@ -123,7 +93,7 @@ POST /Users/GetRelations
 ```json
 {
   "UserID": "5d0f4390ca68215906d1a0fd",
-  "DisplayType": "Follower",
+  "DisplayType": 0,
   "Skip": 0,
   "Take": 20,
   "Query": ""
@@ -133,7 +103,7 @@ POST /Users/GetRelations
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `UserID` | string | 目标用户 ID |
-| `DisplayType` | string | `"Follower"` 粉丝列表，`"Following"` 关注列表 |
+| `DisplayType` | int | `0` 粉丝（Followed），`1` 关注（Following）；更多筛选值见源码枚举 |
 | `Skip` | int | 跳过条数（分页） |
 | `Take` | int | 获取条数（默认 20） |
 | `Query` | string | 搜索关键词（可为空字符串） |
@@ -147,13 +117,7 @@ POST /Users/GetRelations
   "Data": {
     "$type": "...",
     "$values": [
-      {
-        "ID": "...",
-        "Nickname": "...",
-        "Avatar": 0,
-        "AvatarRegion": 0,
-        "Level": 1
-      }
+      { "User": { "ID": "...", "Nickname": "...", "Avatar": 0 }, "Statistic": { "FollowerCount": 0 }, "Relation": 0 }
     ]
   }
 }
@@ -172,13 +136,13 @@ POST /Users/Rename
 **请求体：**
 ```json
 {
-  "Nickname": "新昵称"
+  "Target": "新昵称"
 }
 ```
 
 ### 响应
 
-成功返回 `Status: 200`，`Data` 为更新后的用户信息。
+成功时 `Data` 为 `UserPackage`，常见字段是更新后的 `User`；无关扩展字段可能为 `null`。
 
 ## 5. 修改个人信息（Users/ModifyInformation）
 
@@ -193,9 +157,12 @@ POST /Users/ModifyInformation
 **请求体：**
 ```json
 {
+  "Field": "Signature",
   "Target": "新的个性签名内容"
 }
 ```
+
+成功时 `Data` 是 `UserPackage`，含更新后的 `User`；不适用的扩展字段可能为空。签名字段长度与审核规则由服务端校验。
 
 ## 6. 领取活动奖励（Users/ReceiveBonus）
 

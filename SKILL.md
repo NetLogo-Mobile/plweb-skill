@@ -1,11 +1,24 @@
 ---
 name: plweb-skill
-description: 物理实验室 AR（Physics-Lab-AR / 烧杯实验室）官方社区 API 调用技能。当用户需要与物理实验室社区平台physics-lab交互，或者开发plweb2遇到API相关信息获取时交互时，包括：登录账号（邮箱登录/匿名登录/Token 登录）、查询与获取实验作品、获取实验详情与摘要、获取衍生作品、发布/删除实验、发表/删除评论、获取评论列表、点赞/收藏作品、获取支持者列表、发送与获取站内信、获取通知消息、获取用户资料、关注/取关用户、获取粉丝/关注列表、获取社区首页/资料页/讨论区/实验区内容、获取头像与封面图、修改昵称与个人信息、领取活动奖励、封禁/解封用户（管理员）等。适用于自动化操作物理实验室社区、批量管理作品、数据采集、机器人（Bot）开发、社区互动自动化等场景。API 域名为 physics-api-cn.turtlesim.com（中国区），基于 HTTPS POST JSON 请求
+description: 面向 Physics Lab / 物理实验室 AR 社区 API 的实用指南。用户要登录、查作品/用户/评论/收件箱消息、发布或管理作品、互动或开发 plweb2/API 客户端时使用。包含可运行请求范例、认证和分页处理、错误排查与写操作注意事项。中国区 API 为 physics-api-cn.turtlesim.com；跨区时按用户所在区选择服务域名。
 ---
 
 # 物理实验室 AR 社区 API 调用技能
 
-本技能封装了「物理实验室 AR」（Physics-Lab-AR，又称烧杯实验室 / Quantum Lab）社区平台的完整 HTTP API 调用方法。该平台是一个在线物理实验模拟与分享社区，用户可以在其中创建电学/天体物理实验并发布到社区分享。
+本技能说明如何调用「物理实验室 AR」（Physics Lab / 烧杯实验室）社区 API。端点与字段参考父目录 `physics-lab-turtle-services` 的 `Quantum API/Controllers`、`Quantum Models` 和 `Quantum Logics` 实现；服务端代码优先于旧示例。写操作前先确认目标 ID、权限和影响范围。
+
+## 快速上手
+
+1. 选对区域域名：中国区 `https://physics-api-cn.turtlesim.com`，国际区 `https://physics-api-us.turtlesim.com`。不要默认跨区复用登录凭据。
+2. 先匿名登录或用用户明确提供的账号登录。不要索要、打印或写入源码用户密码、Token；从安全的秘密存储或环境变量读取。匿名登录适合读取公开数据，不能假定它具备写权限。
+3. 除明确为 GET 的路由外，使用 `POST` JSON，并检查响应 JSON 的 `Status`、`Message` 和 `Data`；HTTP 200 本身不代表业务成功。
+4. 需要认证的请求同时带 `x-API-Token` 与 `x-API-AuthCode`。登录响应顶层或后续响应头可能提供更新值。
+5. 分页使用 `Skip`/`Take`，逐页读取并控制请求速率；不要并发轰击 API。
+6. 发布、删除、评论、关注、点赞等写操作先读取并确认目标，再执行并检查响应。会影响真实社区的操作须有用户明确指示。
+
+端到端 Python 示例见 [`docs/quickstart.md`](docs/quickstart.md)。
+
+返回 JSON 的字段含义、对象嵌套、数组包装和各接口 `Data` 类型见 [`docs/responses.md`](docs/responses.md)。使用响应时以该页字段表和父目录模型源码为准。
 
 ## 一、API 概览
 
@@ -15,6 +28,7 @@ description: 物理实验室 AR（Physics-Lab-AR / 烧杯实验室）官方社�
 |------|-----|
 | 协议 | HTTPS（端口 443） |
 | 中国区域名 | `physics-api-cn.turtlesim.com` |
+| 国际区域名 | `physics-api-us.turtlesim.com` |
 | 请求方法 | 绝大多数为 `POST`，少数为 `GET` |
 | 请求体格式 | JSON（`Content-Type: application/json`） |
 | 响应体格式 | JSON |
@@ -23,7 +37,7 @@ description: 物理实验室 AR（Physics-Lab-AR / 烧杯实验室）官方社�
 
 ### 响应统一结构
 
-所有接口返回统一的 JSON 结构：
+控制器成功/失败响应通常使用以下 JSON 包装（静态文件、下载或特殊路由可能不同）：
 
 ```json
 {
@@ -33,7 +47,7 @@ description: 物理实验室 AR（Physics-Lab-AR / 烧杯实验室）官方社�
 }
 ```
 
-- `Status`：HTTP 风格状态码，`200` 表示成功，其他值表示失败
+- `Status`：JSON 内的业务状态码，`200` 表示成功，其他值表示失败；不要把它和 HTTP 传输状态混为一谈
 - `Message`：成功时为空字符串；失败时为错误标识符（如 `"Login.Password.Invalid"`、`"Input.Field.Missing"`）
 - `Data`：成功时为数据对象或数组；失败时通常为 `null`
 
@@ -43,7 +57,11 @@ description: 物理实验室 AR（Physics-Lab-AR / 烧杯实验室）官方社�
 - `Content.Not.Exists` — 内容不存在
 - `Permission.Denied` — 权限不足
 
-> **注意**：列表类接口返回的 `Data` 通常带有 `$type` 和 `$values` 字段，实际数据在 `Data["$values"]` 数组中。
+> **注意**：对象集合可能序列化为带 `$type` 和 `$values` 的结构，也可能直接是数组。解析时兼容两种形式，不要假设所有列表包装相同。
+
+### 路由与源码的对应
+
+以服务端控制器为准：用户接口在 `Users`，内容/实验在 `Contents`，评论接口也由 `Messages` 控制器提供。点赞端点是 `Contents/StarContent`；发布入口为 `Contents/SubmitExperiment`，可能需要后续 `ConfirmExperiment`。查询字段参见 `Quantum Models/Contents/ExperimentQuery.cs`。旧字段示例与源码不一致时，以控制器实际读取字段和模型定义为准。
 
 ### 身份认证
 
@@ -70,7 +88,7 @@ Content-Type: application/json
 {
   "Login": "user@example.com",
   "Password": "yourpassword",
-  "Version": 2411,
+  "Version": 2609,
   "Device": {
     "Identifier": "7db01528cf13e2199e141c402d79190e",
     "Language": "Chinese"
@@ -141,13 +159,13 @@ Content-Type: application/json
 | 获取摘要 | `Contents/GetSummary` | POST | 获取实验摘要信息 |
 | 获取衍生 | `Contents/GetDerivatives` | POST | 获取改编/衍生作品 |
 | 获取支持者 | `Contents/GetSupporters` | POST | 获取点赞/支持者列表 |
-| 点赞内容 | `Contents/Star` | POST | 点赞/取消点赞。支持作品也在此 |
-| 获取评论 | `Contents/GetComments` | POST | 获取内容评论列表 |
-| 发表评论 | `Contents/PostComment` | POST | 发表评论/回复 |
-| 删除评论 | `Contents/RemoveComment` | POST | 删除指定评论 |
-| 确认发布 | `Contents/ConfirmExperiment` | POST | 确认实验发布（底层） |
+| 点赞内容 | `Contents/StarContent` | POST | 点赞/取消点赞 |
+| 获取评论 | `Messages/GetComments` | POST | 获取内容评论列表 |
+| 发表评论 | `Messages/PostComment` | POST | 发表评论/回复 |
+| 删除评论 | `Messages/RemoveComment` | POST | 删除指定评论 |
+| 提交实验 | `Contents/SubmitExperiment` | POST | 新建/更新实验作品；请求结构复杂，按源码模型构造 |
+| 更新封面 | `Contents/ConfirmExperiment` | POST | 确认封面序号或上传封面文件 |
 | 删除实验 | `Contents/RemoveExperiment` | POST | 删除已发布实验 |
-| 上传图片 | `Contents/UploadImage` | POST | 上传实验封面/图片 |
 | 获取资料页 | `Contents/GetProfile` | POST | 获取用户主页内容 |
 | 获取社区库 | `Contents/GetLibrary` | POST | 获取首页/讨论区/实验区 |
 
@@ -155,8 +173,9 @@ Content-Type: application/json
 
 | 接口 | 路径 | 方法 | 说明 |
 |------|------|------|------|
-| 获取消息列表 | `Messages/GetMessages` | POST | 获取站内通知列表 |
+| 获取消息列表 | `Messages/GetMessages` | POST | 获取当前用户收件箱 |
 | 获取单条消息 | `Messages/GetMessage` | POST | 获取指定消息详情 |
+| 批量模板消息 | `Messages/SendMessages` | POST | 管理员专用；发送服务端模板，不是自由文本私信 |
 
 ### 公开接口（无需认证）
 
@@ -198,12 +217,12 @@ Content-Type: application/json
 
 ```bash
 # 登录
-curl -k -X POST "https://physics-api-cn.turtlesim.com/Users/Authenticate" \
+curl -X POST "https://physics-api-cn.turtlesim.com/Users/Authenticate" \
   -H "Content-Type: application/json" \
-  -d '{"Login":"user@example.com","Password":"password","Version":2411,"Device":{"Identifier":"7db01528cf13e2199e141c402d79190e","Language":"Chinese"}}'
+  -d '{"Login":"user@example.com","Password":"<secret>","Version":2609,"Device":{"Identifier":"7db01528cf13e2199e141c402d79190e","Language":"Chinese"}}'
 
 # 查询实验（需替换 TOKEN 和 AUTHCODE）
-curl -k -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments" \
+curl -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments" \
   -H "Content-Type: application/json" \
   -H "x-API-Token: TOKEN" \
   -H "x-API-AuthCode: AUTHCODE" \
@@ -222,14 +241,16 @@ curl -k -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments"
 - [`docs/market.md`](docs/market.md) — 社区/资料页接口详解
 - [`docs/enums.md`](docs/enums.md) — 枚举值完整参考
 - [`docs/examples.md`](docs/examples.md) — 完整代码示例（Python / Node.js / curl）
+- [`docs/quickstart.md`](docs/quickstart.md) — 安全登录、分页查询、错误处理快速入门
+- [`docs/responses.md`](docs/responses.md) — 通用响应壳、Data 对象结构和字段说明
 
 ## 七、注意事项
 
 1. **域名选择**：中国区使用 `physics-api-cn.turtlesim.com`，国际区可能使用不同域名，请根据用户所在区域选择。
-2. **HTTPS 证书**：由于域名与证书可能不匹配，请求时需关闭 SSL 证书验证（Python 中使用 `ssl._create_unverified_context()`，curl 中使用 `-k`）。
+2. **HTTPS 证书**：保持证书验证开启。遇到证书错误时先核对域名、系统时间和证书链；不要用 `curl -k` 或关闭 Python TLS 验证规避问题，以免凭据被中间人窃取。
 3. **Token 有效期**：Token 有有效期，过期后需重新登录或使用 Token 登录刷新。
 4. **频率限制**：API 可能有频率限制，批量操作时建议适当间隔请求。
-5. **Version 字段**：登录时的 `Version` 字段需与当前客户端版本匹配，过旧版本可能被拒绝登录。
-6. **列表数据**：列表类接口返回数据在 `Data["$values"]` 数组中，注意解析时取该字段。
+5. **Version 字段**：登录时的 `Version` 是客户端版本整数（常见格式 `YYMM`）；示例值会过时，应使用目标客户端实际版本，不要机械复制。
+6. **返回体解析**：列表可能直接是 JSON 数组，也可能包装为 `{"$type":"...","$values":[...]}`；部分接口的 `Data` 是包含数组的对象包（例如 `Messages`、`Comments`），先按接口响应说明取对应属性。
 7. **管理员接口**：`Ban`、`Unban` 等接口需要管理员权限，普通用户调用会返回权限错误。
 8. **实验内容格式**：实验内容（`GetExperiment` 返回的 `Data`）为序列化的电路/天体物理模型 JSON，结构复杂，修改时需保留原有结构。
