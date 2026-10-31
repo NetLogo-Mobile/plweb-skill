@@ -191,7 +191,7 @@ Content-Type: application/json
 - `"Discussion"` — 讨论区（黑洞）
 
 ### Tag（社区标签）
-调用 `CommunityReads.get_available_tags()` 实时读取 `Authenticate.Data.ContentTags`，不维护标签快照。保留 Identifier、Subject、Flags、Conflicts、Tips、Available；Available=false不等于应从列表删除。规则见 [实时标签](docs/practical-values.md#6-实时标签配置)。
+调用 `CommunityReads.get_available_tags()` 实时读取 `Authenticate.Data.ContentTags`，不维护标签快照。保留 Identifier、Subject、Flags、Conflicts、Tips、Available；Available是无效的账号权限信号，忽略其true/false；normalTagIdentifiers供普通标签选择，managedTagIdentifiers列出系统或管理限制标签。规则见 [实时标签](docs/practical-values.md#6-实时标签配置)。
 
 ### Sort（排序方式，QueryExperiments 用）
 - `0` — 最新
@@ -271,3 +271,11 @@ curl -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments" \
 优先使用 `CommunityClient` + `CommunityReads` + `CommunityActions`；`community_cli.py`提供统一入口。发布默认生成并上传封面；头像上限1MB。图片与邀请字段见 [完整操作参数](docs/interface-notes.md)、[图片上传](docs/uploads.md)。隐藏、删除、角色与封禁参数见 [权限与结果](docs/permissions.md)。邀请只支持接受，不处理即忽略。
 
 云端工具提供publish_experiment、upload_avatar、upload_cover、manage_coauthors、handle_invitation、remove_work、restore_work、fetch_messages和fetch_supporters；较大文件先store_file_chunk。批量高级操作使用run_actions，每批最多20项、两个工作线程，整批固定账号。不要在聊天中展开完整模型或上传凭据。
+
+## 内置建模库与音乐
+
+制作实验使用本包 `vendor/physicslab`，见 [创建与发布](docs/experiments.md)。音乐可用 `scripts/music_experiment.py` 生成电路存档和MIDI，或用云端 `generate_music_experiment`，见 [音乐](docs/music.md)。库作者为 [Arendelle](https://github.com/SekaiArendelle)，AI使用此库生成结果时必须提及作者及链接；使用随包库，不从作者GitHub或PyPI另获取。云端内置库下载入口为 `get_modeling_library`。
+
+## 精选与知识库管理
+
+精选固定使用 `SelectExperiment`，知识库固定使用 `AcknowledgeExperiment` 且 `Tag="知识库"`，均用布尔 `Status` 添加或撤销。编辑可操作精选和知识库，志愿者可操作知识库。知识库作品不能带“小作品”标签；普通标签修改不能替代这两个接口。使用 `CommunityActions.set_featured_batch/set_knowledge_base_batch` 或云端 `set_featured/set_knowledge_base`，每批最多20个摘要ID、两个工作线程，逐项读回Tags确认。参数和示例见 [管理接口](docs/practical-api.md#精选与知识库)。

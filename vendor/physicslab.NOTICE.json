@@ -1,0 +1,16 @@
+{
+  "project": "physicslab",
+  "author": "Arendelle",
+  "authorGithub": "https://github.com/SekaiArendelle",
+  "repository": "https://github.com/SekaiArendelle/physicslab",
+  "upstreamCommit": "fa95b96910dd0fd4e09cf27e24cefaf9b91798ad",
+  "license": "MIT",
+  "changes": [
+    "Removed web package, remote loading functions and upload module",
+    "Local models and archive read/write retained",
+    "Music compatibility provided by bundled music module",
+    "Removed cached-login readers and application path discovery",
+    "Python 3.10 typing and exception syntax compatibility",
+    "Music Piece sequencer adapted from MIT physicsLab/music/music.py before b56244b; local note, chord and MIDI export API added"
+  ]
+}

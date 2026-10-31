@@ -3,6 +3,8 @@
 | 接口 | 请求字段 | 返回与用法 |
 |---|---|---|
 | `/Contents/SubmitExperiment` | `Summary, Experiment?, Workspace?, Request?` | 新建模型、修改摘要及申请封面上传；新建返回Data.Summary |
+| `/Contents/SelectExperiment` | `Category, SummaryID, Status:boolean` | 添加/撤销精选，Status=true添加、false撤销；读回Tags |
+| `/Contents/AcknowledgeExperiment` | `Category, SummaryID, Tag:"知识库", Status:boolean` | 仅用于添加/撤销知识库；作品不能带小作品标签，读回Tags |
 | `/Contents/ConfirmExperiment` | `Category, SummaryID, Image, Extension` | 确认作品图片序号 |
 | `/Users/RequestAvatar` | `Request:{Extension:".jpg",FileSize:-实际字节数}` | Data为上传凭据，留在程序内部 |
 | `/Users/ConfirmAvatar` | `Avatar:integer` | 确认头像序号 |

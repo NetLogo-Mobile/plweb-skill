@@ -44,7 +44,7 @@
 
 实时从 Authenticate.Data.ContentTags 返回 Identifier、Subject、Flags、Conflicts、Tips、Available 等字段及获取时间，不依赖静态标签表。`category?` 仅按 Flags 提供筛选线索；默认返回全部配置。本仓库每个CommunityReads实例固定一个账号。托管适配器如提供account_ids，最多20个且须按已授权账号隔离；这不是本仓库同名Python方法的参数。匿名会话可读取公开配置。
 
-配置不是账号提交权限，`Available=false` 不能直接用于排除全部标签。修改标签前读取实时配置，核对 Flags、Conflicts、Tips、系统类型与不可变规则；最终服从提交接口的权限判断。
+`Available` 为无效账号权限信号，忽略真假；`normalTagIdentifiers` 用于普通标签选择，`managedTagIdentifiers` 列出系统/管理/编辑限制标签。修改标签前读取实时配置，核对 Flags、Conflicts、Tips、系统类型与不可变规则；最终服从提交接口的权限判断。
 
 ## 大结果
 

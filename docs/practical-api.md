@@ -173,6 +173,46 @@ const payload = {
 
 `Category` 是来源分区，`Target` 是目标分区。成功后按目标分区读取相同摘要 ID。需要移回时交换来源与目标；核对标签是否仍适用，移动不等于改标签。
 
+### 精选与知识库
+
+精选使用 `POST /Contents/SelectExperiment`：
+
+```json
+{"Category":"Experiment","SummaryID":"<摘要ID>","Status":true}
+```
+
+`Status=true` 添加精选，`false` 撤销；不传Tag。编辑可操作精选；不能给自己的作品加精选，服务端返回 `User.Not.Allowed`。不使用 AcknowledgeExperiment 操作精选。
+
+知识库使用 `POST /Contents/AcknowledgeExperiment`，Tag固定为知识库：
+
+```json
+{"Category":"Experiment","SummaryID":"<摘要ID>","Tag":"知识库","Status":true}
+```
+
+`Status=true` 添加知识库，`false` 撤销。编辑和志愿者可操作知识库。添加前移除“小作品”标签；它会导致 `User.Not.Allowed`。根据任务先正常修改摘要标签并读回，再调用知识库接口。保留正确的 `Type-*` 系统标签，按实时Conflicts处理精选等冲突标签。
+
+Category使用作品当前分区，SummaryID使用摘要ID；不是实验保存ContentID。接口返回Data摘要，仍需重新GetSummary核对Tags，不能将200自动说成操作成功。普通SubmitExperiment不会新增精选/知识库，不能替代管理接口。服务器返回的权限及条件错误原样交给AI，不替换成“操作成功”或泛化错误。
+
+通用版：
+
+```python
+actions.set_featured(summary_id, True, category="Experiment")
+actions.set_knowledge_base(summary_id, True, category="Experiment")
+actions.set_featured_batch([id1, id2], False, category="Experiment")
+actions.set_knowledge_base_batch([id1, id2], False, category="Discussion")
+```
+
+云端工具 `set_featured` 与 `set_knowledge_base` 的参数相同：`summary_ids:string[]`、`status:boolean` 必填，`category` 默认Experiment，`account_id` 可选。同一批最多20个不同摘要ID，固定账号和分区，最多两个工作线程，返回逐项结果、真实服务器错误及读回确认的updated。
+
+命令行支持重复 `--summary-id`：
+
+```text
+python scripts/community_cli.py --account <用户ID> featured --summary-id <摘要ID> --status add
+python scripts/community_cli.py --account <用户ID> knowledge --summary-id <摘要ID1> --summary-id <摘要ID2> --category Discussion --status remove
+```
+
+`CommunityActions.run_batch` 的 action也支持 `set_featured` 与 `set_knowledge_base`，args使用单个 `summary_id`、`status`、可选category；整批仍最多20个作品。
+
 ## 4. 收藏与金币支持
 
 ### POST /Contents/IsStarred

@@ -33,7 +33,7 @@ def build(destination: Path, title: str = "Logic connection", kind: str = "circu
     json.loads(destination.read_text(encoding="utf-8-sig"))
     loaded = loader(destination)
     return {"archive": str(destination.resolve()), "title": loaded.name,
-            "generated": True, "simulation_verified": False, "published": False}
+            "generated": True, "simulation_verified": False, "published": False, "author": "Arendelle", "authorGithub": "https://github.com/SekaiArendelle", "attribution": "本实验使用 Arendelle 的 physicslab 内置建模库生成：https://github.com/SekaiArendelle"}
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

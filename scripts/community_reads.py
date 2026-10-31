@@ -12,6 +12,7 @@ _next_start = 0.0
 _READ_PATHS = {"/Contents/GetLibrary","/Contents/QueryExperiments","/Contents/GetSummary","/Contents/GetExperiment","/Contents/GetWorkspace","/Contents/GetDerivatives","/Contents/GetProfile","/Contents/GetSupporters","/Contents/IsStarred","/Messages/GetComments","/Users/GetUser","/Users/GetRelations"}
 _WRITE_PATHS = {"/Contents/SubmitExperiment","/Contents/MoveCategory","/Contents/StarContent","/Contents/RemoveExperiment","/Contents/RestoreExperiment","/Contents/ConfirmExperiment","/Messages/PostComment","/Messages/RemoveComment","/Messages/GetMessages","/Messages/GetMessage","/Messages/SendMessages","/Users/Follow","/Users/Block","/Users/Rename","/Users/ModifyInformation","/Users/SetCover","/Users/Ban","/Users/Unban","/Users/Appoint","/Users/SyncActivities","/Users/ReceiveBonus","/Users/Logout"}
 _WRITE_PATHS.update({'/Contents/VisitExperiment','/Contents/InviteCoauthor','/Contents/RemoveCoauthor','/Messages/HandleInvitation','/Users/RequestAvatar','/Users/ConfirmAvatar'})
+_WRITE_PATHS.update({'/Contents/SelectExperiment','/Contents/AcknowledgeExperiment'})
 
 def _array(value):
     if isinstance(value, list):
@@ -184,7 +185,9 @@ class CommunityReads:
         if not tags or any(not isinstance(t.get("Identifier"),str) or not t["Identifier"] for t in tags):
             raise ValueError("Invalid ContentTags")
         tags = [{**tag,"Flags":_array(tag.get("Flags")),"Conflicts":_array(tag.get("Conflicts"))} for tag in tags]
-        return {"source":"Authenticate.Data.ContentTags","total":len(tags),"tags":[t for t in tags if category is None or category in t["Flags"]],"availabilityNote":"Available=false does not remove tags; actual submission permissions remain server-controlled."}
+        selected=[t for t in tags if category is None or category in t['Flags']]
+        def managed(t):return t['Identifier'].startswith('Type-') or bool(set(t['Flags'])&{'Immutable','EditOnly','Volunteer','Junior','Editor','Administrator','Oldtimer','Emeritus'})
+        return {"source":"Authenticate.Data.ContentTags","total":len(tags),"tags":selected,"availableIsPermission":False,"normalTagIdentifiers":[t['Identifier'] for t in selected if not managed(t)],"managedTagIdentifiers":[t['Identifier'] for t in selected if managed(t)],"availabilityNote":"Available是无效的账号权限信号，忽略其true/false，不能据此拒绝交流等普通标签。normalTagIdentifiers用于普通标签选择，组合按Conflicts/Tips匹配；managedTagIdentifiers含系统、管理或编辑限制标签。普通SubmitExperiment不会新增精选或知识库，即使返回200也要读回Tags确认。"}
 
     def inspect_experiments(self, content_ids, output_dir):
         """Download and process internally. Return only overviews and local file paths."""
@@ -214,6 +217,10 @@ class CommunityReads:
         total = 0
         for body in bodies:
             if not isinstance(body,dict):raise ValueError('Each body must be an object')
+            if path in ('/Contents/SelectExperiment','/Contents/AcknowledgeExperiment'):
+                if not isinstance(body.get('SummaryID'),str) or not body['SummaryID'] or not isinstance(body.get('Status'),bool) or body.get('Category') not in ('Experiment','Discussion','Model'):raise ValueError('Category, SummaryID and boolean Status are required')
+                if path=='/Contents/AcknowledgeExperiment' and body.get('Tag')!='知识库':raise ValueError('AcknowledgeExperiment is reserved for Knowledge Base; Tag must be 知识库')
+                if path=='/Contents/SelectExperiment' and 'Tag' in body:raise ValueError('SelectExperiment does not take Tag; use Status to manage Featured')
             if path=='/Messages/SendMessages':
                 targets=body.get('TargetID')
                 if not isinstance(targets,list) or not targets or len(targets)>20:

@@ -1,28 +1,16 @@
 """Load only physicslab local-model modules, without running its network imports."""
 import importlib
-import importlib.util
 import sys
-import types
+from pathlib import Path
 
 def load_local_modules():
+    vendor=Path(__file__).resolve().parents[1]/'vendor'
+    if not (vendor/'physicslab/__init__.py').is_file():raise RuntimeError('Bundled modeling library is missing; reinstall this skill bundle')
     if 'physicslab' in sys.modules:
-        raise RuntimeError('Run in a fresh Python process before importing physicslab.')
-    spec=importlib.util.find_spec('physicslab')
-    if spec is None or not spec.submodule_search_locations:
-        raise ModuleNotFoundError('Install physicslab 3.0.0 in this Python environment first.')
-    package=types.ModuleType('physicslab')
-    package.__path__=list(spec.submodule_search_locations)
-    package.__package__='physicslab'
-    package.__spec__=spec
-    sys.modules['physicslab']=package
-    network=types.ModuleType('physicslab.web')
-    class UnavailableUser:
-        def __init__(self,*args,**kwargs):
-            raise RuntimeError('Library network operations are disabled; use the verified community adapter.')
-    network.User=UnavailableUser
-    # Local experiment modules evaluate this unused network default at import time.
-    # Supplying None avoids executing any library network module or login call.
-    network.anonymous_login=lambda *args,**kwargs:None
-    sys.modules['physicslab.web']=network
+        current=Path(sys.modules['physicslab'].__file__).resolve()
+        if not current.is_relative_to(vendor.resolve()):raise RuntimeError('Start a fresh Python process to use the bundled library')
+    else:
+        sys.path.insert(0,str(vendor))
+        importlib.import_module('physicslab')
     local={name:importlib.import_module('physicslab.'+name) for name in ('coordinate_system','enums','circuit','celestial','electromagnetism')}
     return local

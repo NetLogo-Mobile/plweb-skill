@@ -1,6 +1,10 @@
 # 图片上传
 
-本地使用 `CommunityActions.set_avatar(image_path)` 与 `set_cover(summary_id,image_path,category="Experiment")`。云端使用 `upload_avatar`、`upload_cover`，图片可以是小文件的Base64或分块上传后的image_file_id。
+本地使用 `CommunityActions.set_avatar(image_path)` 与 `set_cover(summary_id,image_path,category="Experiment")`。云端使用 `upload_avatar`、`upload_cover`，必填 `image_source`：`base64` 时只填原始 `image_base64` 字符串（不含data:前缀）；`plugin_file` 时只填 `image_file_id`。
+
+`image_file_id` 只能是本插件 `store_file_chunk` 返回的 `plfile_…`，文件必须 `kind=image` 且 `complete=true`。ChatGPT附件ID、生成图片的附件ID和路径都不能直接传入。先在有文件读取能力的环境中读取附件字节，分块Base64保存到本插件，再使用返回ID。
+
+例如 `upload_avatar({image_source:"plugin_file",image_file_id:"plfile_<UUID>"})`。小图也可 `upload_avatar({image_source:"base64",image_base64:"<原始Base64>"})`。两种方式均可选传 `account_id`。封面工具另外必填 `summary_id`，可选 `category`。
 
 ## 头像
 
@@ -9,7 +13,7 @@
 3. 用返回的Data凭据上传图片。
 4. ConfirmAvatar传`{Avatar:新序号}`，重新GetUser核对。
 
-头像上限为 **1024×1024字节（1MB）**；辅助代码在发送前拒绝超限文件。
+头像文件上限为 **1,048,576字节（1MiB）**；封面文件上限为 **8,388,608字节（8MiB）**，发送前拒绝超限文件。图片格式为 JPEG、PNG 或 WebP。像素尺寸与文件字节数是两个不同概念；插件不另设宽高像素上限，不能将文件大小写成1024×1024像素。
 
 ## 封面
 

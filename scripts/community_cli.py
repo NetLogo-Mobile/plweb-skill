@@ -47,6 +47,11 @@ def main():
     remove.add_argument('--reason', default='')
     actions_parser = commands.add_parser('actions')
     actions_parser.add_argument('--input', type=Path, required=True)
+    for name in ('featured','knowledge'):
+        command=commands.add_parser(name)
+        command.add_argument('--summary-id',action='append',required=True,help='Repeat for up to 20 works')
+        command.add_argument('--status',choices=['add','remove'],required=True)
+        command.add_argument('--category',choices=['Experiment','Discussion','Model'],default='Experiment')
     args = parser.parse_args()
     try:
         if args.command in ('accounts', 'forget'):
@@ -61,7 +66,7 @@ def main():
         else:
             if args.anonymous and args.account:
                 parser.error('Choose --account or --anonymous')
-            if args.anonymous and args.command in ('publish','avatar','cover','remove','actions'):
+            if args.anonymous and args.command in ('publish','avatar','cover','remove','actions','featured','knowledge'):
                 parser.error('This command requires --account')
             if args.anonymous:
                 api = CommunityClient(domain=args.domain)
@@ -86,6 +91,9 @@ def main():
                 result = actions.restore(args.summary_id,category=args.category,reason=args.reason) if args.mode=='restore' else actions.remove(args.summary_id,category=args.category,hide=args.mode=='hide',reason=args.reason)
             elif args.command == 'actions':
                 result = actions.run_batch(json.loads(args.input.read_text(encoding='utf-8-sig')))
+            elif args.command in ('featured','knowledge'):
+                method=actions.set_featured_batch if args.command=='featured' else actions.set_knowledge_base_batch
+                result=method(args.summary_id,args.status=='add',args.category)
             else:
                 if args.input.stat().st_size > 1048576:
                     raise ValueError('Task input exceeds 1MB; never put saved experiments in this file')

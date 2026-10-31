@@ -144,11 +144,48 @@ class CommunityActions:
         if not accept:raise ValueError('Use the accept-invitation operation only')
         return self.api.request('/Messages/HandleInvitation',{'MessageID':message_id})
 
+    def _set_managed_tag(self,summary_id,status,category,*,path,tag):
+        if not isinstance(status,bool):raise ValueError('status must be a boolean')
+        if category not in ('Experiment','Discussion','Model'):raise ValueError('Invalid category')
+        before=self.api.request('/Contents/GetSummary',{'Category':category,'ContentID':summary_id})['Data']
+        body={'Category':category,'SummaryID':summary_id,'Status':status}
+        if tag=='知识库':body['Tag']='知识库'
+        self.api.request(path,body)
+        after=self.api.request('/Contents/GetSummary',{'Category':category,'ContentID':summary_id})['Data']
+        def tag_list(summary):
+            value=summary.get('Tags') or []
+            return value if isinstance(value,list) else value.get('$values',[]) if isinstance(value,dict) else []
+        tags=tag_list(after)
+        return {'summaryId':summary_id,'category':category,'tag':tag,'requestedStatus':status,
+                'updated':(tag in tags)==status,'beforeTags':tag_list(before),'tags':tags}
+
+    def set_featured(self,summary_id,status,category='Experiment'):
+        """Add/remove Featured through SelectExperiment, then read back Tags."""
+        return self._set_managed_tag(summary_id,status,category,path='/Contents/SelectExperiment',tag='精选')
+
+    def set_knowledge_base(self,summary_id,status,category='Experiment'):
+        """Add/remove Knowledge Base; AcknowledgeExperiment.Tag is fixed here."""
+        return self._set_managed_tag(summary_id,status,category,path='/Contents/AcknowledgeExperiment',tag='知识库')
+
+    def _managed_batch(self,summary_ids,status,category,method):
+        from community_reads import CommunityReads
+        if not isinstance(summary_ids,list) or not 1<=len(summary_ids)<=20 or any(not isinstance(s,str) or not s for s in summary_ids):raise ValueError('Provide 1..20 summary IDs')
+        if len(set(summary_ids))!=len(summary_ids):raise ValueError('Summary IDs must be unique')
+        if not isinstance(status,bool):raise ValueError('status must be a boolean')
+        return CommunityReads(self.api.request)._batch(summary_ids,lambda sid:method(sid,status,category))
+
+    def set_featured_batch(self,summary_ids,status,category='Experiment'):
+        return self._managed_batch(summary_ids,status,category,self.set_featured)
+
+    def set_knowledge_base_batch(self,summary_ids,status,category='Experiment'):
+        return self._managed_batch(summary_ids,status,category,self.set_knowledge_base)
+
     def run_batch(self,jobs):
         from community_reads import CommunityReads
         methods={'publish':self.publish,'avatar':self.set_avatar,'cover':self.set_cover,'remove':self.remove,
                  'restore':self.restore,
-                 'invite':self.invite_coauthor,'remove_coauthor':self.remove_coauthor,'accept_invitation':self.handle_invitation}
+                 'invite':self.invite_coauthor,'remove_coauthor':self.remove_coauthor,'accept_invitation':self.handle_invitation,
+                 'set_featured':self.set_featured,'set_knowledge_base':self.set_knowledge_base}
         if not isinstance(jobs,list) or not 1<=len(jobs)<=20:raise ValueError('Action batch supports 1..20 jobs')
         for job in jobs:
             if not isinstance(job,dict) or job.get('action') not in methods or not isinstance(job.get('args'),dict):raise ValueError('Unknown action or invalid arguments')
