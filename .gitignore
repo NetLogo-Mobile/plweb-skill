@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 .env
 *.plsav
+tests/
+test_*.py
+*_test.py
