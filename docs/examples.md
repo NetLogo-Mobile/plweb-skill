@@ -9,6 +9,13 @@
 ```python
 import json
 import urllib.request
+import threading
+import time
+
+# 从仓库根目录运行；作为其他项目依赖时将scripts加入模块路径。
+import sys
+sys.path.insert(0, "scripts")
+from community_client import redact
 
 
 class PhysicsLabAPI:
@@ -20,29 +27,47 @@ class PhysicsLabAPI:
         self.token = None
         self.auth_code = None
         self.user_id = None
+        self._lock = threading.RLock()
+        self._next_start = 0.0
 
     def _post(self, path, body, need_auth=True):
-        """发送 POST 请求"""
+        """发送 POST 请求；不向调用者返回凭据。账号常规使用login_gui.py。"""
         url = f"https://{self.DOMAIN}/{path}"
         data = json.dumps(body).encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST")
-        req.headers = {"Content-Type": "application/json"}
-        if need_auth:
-            req.headers["x-API-Token"] = self.token or ""
-            req.headers["x-API-AuthCode"] = self.auth_code or ""
-        with urllib.request.urlopen(req) as resp:
-            if resp.info().get("Content-Encoding") == "gzip":
-                import gzip
-                content = gzip.decompress(resp.read())
-            else:
-                content = resp.read()
-            return json.loads(content)
+        req.headers = {"Content-Type": "application/json", "x-API-Version": "2502"}
+        # 多线程时串行发送并更新凭据，不自动重试。
+        with self._lock:
+            if need_auth:
+                req.headers["x-API-Token"] = self.token or ""
+                req.headers["x-API-AuthCode"] = self.auth_code or ""
+            time.sleep(max(0, self._next_start - time.monotonic()))
+            self._next_start = time.monotonic() + 0.35
+            # 禁止重定向，防止认证头转发到其他主机。
+            class NoRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, *args, **kwargs):
+                    return None
+            with urllib.request.build_opener(NoRedirect()).open(req, timeout=30) as resp:
+                if resp.info().get("Content-Encoding") == "gzip":
+                    import gzip
+                    content = gzip.decompress(resp.read())
+                else:
+                    content = resp.read()
+                result = json.loads(content)
+                if result.get("Status") != 200:
+                    raise RuntimeError(f"Community request failed: {result.get('Status')}")
+                if path == "Users/Authenticate":
+                    self.token = result.get("Token")
+                    self.auth_code = result.get("AuthCode")
+                self.token = resp.headers.get("x-API-Token") or self.token
+                self.auth_code = resp.headers.get("x-API-AuthCode") or self.auth_code
+                return redact(result)
 
     def _get(self, path):
         """发送 GET 请求"""
         url = f"https://{self.DOMAIN}/{path}"
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read())
 
     # ========== 登录 ==========
@@ -60,8 +85,6 @@ class PhysicsLabAPI:
         }
         result = self._post("Users/Authenticate", body, need_auth=False)
         if result.get("Status") == 200:
-            self.token = result.get("Token")
-            self.auth_code = result.get("AuthCode")
             self.user_id = result["Data"]["User"]["ID"]
         return result
 
@@ -78,8 +101,6 @@ class PhysicsLabAPI:
         }
         result = self._post("Users/Authenticate", body, need_auth=False)
         if result.get("Status") == 200:
-            self.token = result.get("Token")
-            self.auth_code = result.get("AuthCode")
             self.user_id = result["Data"]["User"]["ID"]
         return result
 
@@ -88,10 +109,10 @@ class PhysicsLabAPI:
     def get_user(self, name=None, user_id=None):
         """获取用户信息"""
         body = {}
-        if name:
-            body["Name"] = name
-        elif user_id:
+        if user_id:
             body["ID"] = user_id
+        elif name:
+            body["Name"] = name
         return self._post("Users/GetUser", body)
 
     def get_profile(self, user_id):
@@ -105,8 +126,12 @@ class PhysicsLabAPI:
             "Action": 1 if follow else 0,
         })
 
-    def get_relations(self, user_id, display_type="Follower", skip=0, take=20):
+    def get_relations(self, user_id, display_type=0, skip=0, take=20):
         """获取粉丝/关注列表"""
+        if isinstance(display_type, bool) or not isinstance(display_type, int):
+            raise ValueError("DisplayType must be an integer; strings may silently select fans")
+        if isinstance(take, bool) or not isinstance(take, int) or not 1 <= take <= 20:
+            raise ValueError("A user batch supports Take 1..20")
         return self._post("Users/GetRelations", {
             "UserID": user_id,
             "DisplayType": display_type,
@@ -118,8 +143,10 @@ class PhysicsLabAPI:
     # ========== 内容/实验 ==========
 
     def query_experiments(self, category="Experiment", skip=0, take=16, sort=0,
-                          tags=None, user_id=None):
-        """查询实验列表"""
+                          tags=None, user_id=None, cursor=None):
+        """查询实验列表；续页用末条ID游标，不能递增Skip。"""
+        if skip != 0 or not 1 <= take <= 20:
+            raise ValueError("Use Skip=0, From cursor and Take 1..20")
         query = {
             "Category": category,
             "Languages": [],
@@ -131,8 +158,8 @@ class PhysicsLabAPI:
             "ParentID": None,
             "UserID": user_id,
             "Special": None,
-            "From": None,
-            "Skip": skip,
+            "From": cursor,
+            "Skip": 0,
             "Take": take,
             "Days": 0,
             "Sort": sort,
@@ -160,6 +187,8 @@ class PhysicsLabAPI:
 
     def get_supporters(self, summary_id, category="Experiment", skip=0, take=10):
         """获取支持者列表"""
+        if isinstance(take, bool) or not isinstance(take, int) or not 1 <= take <= 20:
+            raise ValueError("A user batch supports Take 1..20")
         return self._post("Contents/GetSupporters", {
             "ContentID": summary_id,
             "Category": category,
@@ -185,12 +214,15 @@ class PhysicsLabAPI:
 
     # ========== 评论 ==========
 
-    def get_comments(self, summary_id, category="Experiment", skip=0, take=16):
-        """获取评论列表"""
+    def get_comments(self, summary_id, category="Experiment", skip=0, take=16, cursor=None):
+        """获取评论列表；边界按ID去重。"""
+        if skip != 0 or not 1 <= take <= 1000:
+            raise ValueError("Use Skip=0 and CommentID cursor")
         return self._post("Messages/GetComments", {
             "TargetID": summary_id,
             "TargetType": category,
-            "Skip": skip,
+            "CommentID": cursor or "",
+            "Skip": 0,
             "Take": take,
         })
 
@@ -222,6 +254,8 @@ class PhysicsLabAPI:
 
     def send_template_messages(self, target_ids, category, template_id, summary_ids=None):
         """管理员专用批量发送模板消息；不是普通用户自由文本私信。"""
+        if not isinstance(target_ids, list) or not target_ids or len(target_ids) > 20:
+            raise ValueError("This skill limits each user batch to 20 targets")
         return self._post("Messages/SendMessages", {
             "TargetID": target_ids,
             "Category": category,
@@ -261,17 +295,22 @@ experiments = experiments or []
 for exp in experiments:
     print(f"  [{exp['ID'][:8]}] {exp['Subject']} - by {exp['User']['Nickname']} (★{exp['Stars']})")
 
-# 获取某个实验的详情
+summary_id = None
+# 获取某个实验的有界概览，完整模型不进入聊天
 if experiments and experiments[0].get("ContentID"):
     summary_id = experiments[0]["ID"]
     save_id = experiments[0].get("ContentID")
-    detail = api.get_experiment(save_id)
-    print(f"实验详情: {detail['Data']['Subject']}")
+    from community_reads import CommunityReads
+    views = CommunityReads(lambda path, body: api._post(path.lstrip("/"), body)).inspect_experiments([save_id], "private-results")
+    print(views)
 
 # 获取实验评论
-comments = api.get_comments(summary_id, take=5)
-for c in comments["Data"]["Comments"]:
-    print(f"  {c['Nickname']}: {c['Content']}")
+if summary_id:
+    comments = api.get_comments(summary_id, take=5)
+    rows = comments["Data"]["Comments"]
+    rows = rows.get("$values", []) if isinstance(rows, dict) else rows
+    for c in rows:
+        print(f"  {c['Nickname']}: {c['Content']}")
 
 # 邮箱登录后可以发表评论、点赞等
 # api.login("user@example.com", "<从安全存储读取>", version=2609)
@@ -292,6 +331,8 @@ function post(path, body, token, authCode) {
     const headers = { "Content-Type": "application/json" };
     if (token) {
       headers["x-API-Token"] = token;
+    }
+    if (authCode) {
       headers["x-API-AuthCode"] = authCode;
     }
     const options = {
@@ -300,17 +341,26 @@ function post(path, body, token, authCode) {
       path: `/${path}`,
       method: "POST",
       headers,
-      rejectUnauthorized: false, // 忽略证书验证
+      rejectUnauthorized: true,
+      timeout: 30000,
     };
     const req = https.request(options, (res) => {
       const chunks = [];
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => {
         const buffer = Buffer.concat(chunks);
-        resolve(JSON.parse(buffer.toString()));
+        try {
+          const payload = JSON.parse(buffer.toString());
+          if (res.statusCode !== 200 || payload.Status !== 200) {
+            reject(new Error(`Community request failed: HTTP ${res.statusCode}, Status ${payload.Status}`));
+            return;
+          }
+          resolve(payload); // 认证响应只在程序内部使用，不能整包打印。
+        } catch (_) { reject(new Error("Invalid community response")); }
       });
     });
-    req.on("error", reject);
+    req.on("timeout", () => req.destroy(new Error("Community request timed out")));
+    req.on("error", () => reject(new Error("Community network error")));
     req.write(data);
     req.end();
   });
@@ -340,7 +390,7 @@ async function main() {
   }, token, authCode);
 
   const data = queryResult.Data;
-  const experiments = Array.isArray(data) ? data : (data.$values || []);
+  const experiments = Array.isArray(data) ? data : (data?.$values || []);
   experiments.forEach((exp) => {
     console.log(`  ${exp.Subject} - by ${exp.User.Nickname} (★${exp.Stars})`);
   });
@@ -357,7 +407,7 @@ curl -X POST "https://physics-api-cn.turtlesim.com/Users/Authenticate" \
   -H "Content-Type: application/json" \
   -d '{"Login":null,"Password":null,"Version":2609,"Device":{"Identifier":"<stable-device-id>","Language":"Chinese"}}'
 
-# 邮箱登录（替换邮箱和密码）
+# 邮箱登录协议示意；真实使用运行login_gui.py，不在命令行粘贴密码。不要打印认证原始响应。
 curl -X POST "https://physics-api-cn.turtlesim.com/Users/Authenticate" \
   -H "Content-Type: application/json" \
   -d '{"Login":"user@example.com","Password":"<secret>","Version":2609,"Device":{"Identifier":"<stable-device-id>","Language":"Chinese"}}'
@@ -369,12 +419,12 @@ curl -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments" \
   -H "x-API-AuthCode: AUTHCODE" \
   -d '{"Query":{"Category":"Experiment","Languages":[],"ExcludeLanguages":[],"Tags":null,"ExcludeTags":null,"ModelTags":null,"ModelID":null,"ParentID":null,"UserID":null,"Special":null,"From":null,"Skip":0,"Take":10,"Days":0,"Sort":0,"ShowAnnouncement":false}}'
 
-# 获取实验详情（替换 CONTENT_ID, TOKEN, AUTHCODE）
+# 下载实验到当前用户的私人任务文件（替换 CONTENT_ID, TOKEN, AUTHCODE）；不要将文件全文发给模型
 curl -X POST "https://physics-api-cn.turtlesim.com/Contents/GetExperiment" \
   -H "Content-Type: application/json" \
   -H "x-API-Token: TOKEN" \
   -H "x-API-AuthCode: AUTHCODE" \
-  -d '{"ContentID":"CONTENT_ID"}'
+  -d '{"ContentID":"CONTENT_ID"}' -o experiment-private.json
 
 # 获取评论列表
 curl -X POST "https://physics-api-cn.turtlesim.com/Messages/GetComments" \
@@ -423,24 +473,14 @@ curl "https://physics-api-cn.turtlesim.com/Users"
 api = PhysicsLabAPI()
 api.anonymous_login(version=2609)
 
-all_experiments = []
-skip = 0
-while True:
-    result = api.query_experiments(category="Experiment", skip=skip, take=20, sort=1)
-    data = result["Data"]
-    experiments = data.get("$values", []) if isinstance(data, dict) else data
-    experiments = experiments or []
-    if not experiments:
-        break
-    all_experiments.extend(experiments)
-    skip += len(experiments)
-    if len(all_experiments) >= 200:  # 获取前 200 个
-        break
-
-print(f"共获取 {len(all_experiments)} 个热门实验")
+from community_reads import CommunityReads
+client = CommunityReads(lambda path, body: api._post(path.lstrip("/"), body))
+# 单批最多20个；排序1是原版热门用法，当前区域的推进语义应检查。
+result = client.fetch_works(category="Experiment", count=20, sort=1)
+print({key: result[key] for key in ("returned", "complete", "stopReason", "nextCursor")})
 ```
 
-### 场景 2：自动回复评论
+### 场景 2：按用户明确授权自动回复评论
 
 ```python
 api = PhysicsLabAPI()
@@ -452,12 +492,14 @@ data = result["Data"]
 experiments = data.get("$values", []) if isinstance(data, dict) else data
 for exp in experiments or []:
     comments = api.get_comments(exp["ID"])
-    for comment in comments["Data"]["Comments"]:
-        # 自动回复每条评论
+    rows = comments["Data"]["Comments"]
+    rows = rows.get("$values", []) if isinstance(rows, dict) else rows
+    for comment in rows:
+        # 仅在用户已授权这些目标及正文时执行；不把示例当作发送授权。
         api.post_comment(exp["ID"], f"感谢 {comment['Nickname']} 的评论！")
 ```
 
-### 场景 3：获取用户所有作品
+### 场景 3：获取用户主页展示的作品（不是全部历史作品）
 
 ```python
 api = PhysicsLabAPI()

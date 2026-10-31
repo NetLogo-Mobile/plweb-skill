@@ -6,7 +6,7 @@
 
 ## 1. 获取用户信息（Users/GetUser）
 
-按用户名或用户 ID 查询用户资料。
+按完整昵称（Name）或用户 ID 查询用户资料。2026-10-31中国区实测完整昵称可用，截短昵称未命中；不等于全站模糊搜索。
 
 ### 请求
 
@@ -104,9 +104,9 @@ POST /Users/GetRelations
 |------|------|------|
 | `UserID` | string | 目标用户 ID |
 | `DisplayType` | int | `0` 粉丝（Followed），`1` 关注（Following）；更多筛选值见源码枚举 |
-| `Skip` | int | 跳过条数（分页） |
+| `Skip` | int | 服务端分页参数；本轮仅见修改后列表变化，尚不能证明是正确条数偏移，批量遍历前单独核验 |
 | `Take` | int | 获取条数（默认 20） |
-| `Query` | string | 搜索关键词（可为空字符串） |
+| `Query` | string | 关系范围内昵称筛选；实测完整昵称可命中，截短昵称未命中，不当作全站模糊搜索 |
 
 ### 响应
 
@@ -253,4 +253,4 @@ GET https://physics-api-cn.turtlesim.com/Avatars/{category}/{target_id}_{index}_
 https://physics-api-cn.turtlesim.com/Avatars/users/5d0f4390ca68215906d1a0fd_0_small.round.png
 ```
 
-> 由于证书与域名不匹配，获取图片时需关闭 SSL 验证。
+> 保持TLS验证开启。2026-10-31此形式的头像请求通过证书验证但返回404，图片路由当前有效性未确认。勿批量猜测地址；另见 [网页静态资源路径](practical-api.md#10-活动与图片)。

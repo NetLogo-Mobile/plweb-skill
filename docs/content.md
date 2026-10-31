@@ -50,11 +50,11 @@ POST /Contents/QueryExperiments
 | `ParentID` | string/null | 筛选特定父作品 ID（获取衍生作品时用） |
 | `UserID` | string/null | 筛选特定用户的作品 |
 | `Special` | string/null | 特殊筛选 |
-| `From` | string/null | 起始内容 ID（游标分页） |
-| `Skip` | int | 跳过条数（偏移分页） |
+| `From` | string/null | 首页null；续页传末条摘要ID。不可直接传毫秒或ISO时间；边界按ID去重 |
+| `Skip` | int | 保持0；当前中国区传条数偏移会重复第一页 |
 | `Take` | int | 获取条数（默认 16） |
 | `Days` | int | 时间范围（天数，0 表示不限） |
-| `Sort` | int | 排序方式：`0` 最新，`1` 最热 |
+| `Sort` | int | 原版说明0最新、1热门；并非已证明按点赞数排序，其他排序与续页组合先核验 |
 | `ShowAnnouncement` | bool | 是否显示公告 |
 
 ### 响应
@@ -331,3 +331,9 @@ POST /Contents/GetLibrary
 ### 响应
 
 返回社区库的板块结构，包含导航分类、板块列表等信息。
+
+## 执行辅助与补充接口
+
+作品列表优先使用 [fetch_works](operations.md)，读取实验先用 [大实验概览](large-experiments.md)，不要打印完整StatusSave。
+
+原版 SubmitExperiment 路由保留；既有作品文本/标签编辑、GetWorkspace、MoveCategory、IsStarred、RestoreExperiment等具体参数见 [补充接口](practical-api.md)。首次创建模型、封面上传与发布尚无完整验证的HTTP流程，不得根据路由名猜造。制作存档与官方客户端发布见 [实验建模](experiments.md)。

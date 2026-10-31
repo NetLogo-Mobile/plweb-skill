@@ -27,9 +27,9 @@ POST /Messages/GetMessages
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `CategoryID` | int | 消息分类 ID，`0` 表示全部 |
-| `Skip` | int | 跳过条数（分页偏移） |
+| `Skip` | int | 服务端分页参数；当前只保证首批，完整续页协议须单独核验，不擅自假定条数偏移 |
 | `Take` | int | 获取条数（默认 16） |
-| `NoTemplates` | bool | 是否排除模板消息（系统通知模板） |
+| `NoTemplates` | bool | 是否省略Templates对象；不是排除使用模板的消息条目 |
 
 ### 响应
 
@@ -64,7 +64,7 @@ POST /Messages/GetMessages
 | `Users` / `UserNames` | 相关用户 ID 与昵称数组 |
 | `CategoryID` | 消息类别枚举，0 至 5 |
 | `Timestamp` / `TimestampInitial` | 毫秒级 Unix 时间戳 |
-| `Unread` / `Handled` | 未读数量/邀请处理状态数值 |
+| `Unread` / `Handled` | long状态标记，不是数量；Unread=0未读，非零为读取时间戳；Handled单独解释 |
 | `Fields` / `Numbers` | 模板文本替换用字符串/数值字典，不是已渲染正文 |
 
 ## 2. 获取单条站内信（Messages/GetMessage）
@@ -132,3 +132,9 @@ POST /Messages/SendMessages
 ### 注意事项
 
 - 该接口只允许管理员调用，且只能发送服务器定义的模板消息；普通用户不能用它发送任意文本私信。
+
+## 批量与副作用
+
+仓库辅助层把GetMessages与GetMessage视作有状态操作，调用通用批量方法时须显式write=True并有相应任务授权；这不改变接口仍为“消息读取”的业务名称。未验证的Skip续页不作完整遍历。
+
+SendMessages保留服务端1至50人的原版字段说明，但本技能每批用户总计最多20个；不自行拆批绕过。模板正文的本地渲染规则见 [通知](practical-api.md#7-通知)。

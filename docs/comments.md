@@ -28,7 +28,8 @@ POST /Messages/GetComments
 |------|------|------|
 | `TargetID` | string | 目标内容或用户 ID |
 | `TargetType` | string | `"Experiment"`、`"Discussion"` 或 `"User"` |
-| `Skip` | int | 跳过条数（分页偏移） |
+| `Skip` | int | 固定0；条数偏移实测可能返回空页 |
+| `CommentID` | string | 首页空字符串，续页为末条评论ID；边界包含，须去重 |
 | `Take` | int | 获取条数（默认 16） |
 
 ### 响应
@@ -173,3 +174,9 @@ POST /Messages/RemoveComment
 ## 4. 已移除的旧路径
 
 `Contents/GetDiscussionComments` 不存在于当前服务端控制器中。讨论作品评论使用 `Messages/GetComments`，请求的 `TargetType` 设为 `Discussion`，其响应与本页的评论包相同。
+
+## 自动分页、回复与警告
+
+指定条数或多个目标使用 [fetch_comments](operations.md)，每批所有目标合计最多1000条。返回数组可能有$values包装。续页不能仅依Count判断完成。
+
+原有发表评论/删除能力保留；PostComment还支持ReplyID（被回复的用户ID，非评论ID）、Language、Special及社区用户引用。管理警告仅在权限和目标类型正确时生效，字段与副作用见 [评论与警告](practical-api.md#6-评论回复--与警告)。
