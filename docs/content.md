@@ -54,7 +54,7 @@ POST /Contents/QueryExperiments
 | `Skip` | int | 保持0；当前中国区传条数偏移会重复第一页 |
 | `Take` | int | 获取条数（默认 16） |
 | `Days` | int | 时间范围（天数，0 表示不限） |
-| `Sort` | int | 原版说明0最新、1热门；并非已证明按点赞数排序，其他排序与续页组合先核验 |
+| `Sort` | int | 0默认、1热门、2随机 |
 | `ShowAnnouncement` | bool | 是否显示公告 |
 
 ### 响应
@@ -336,4 +336,4 @@ POST /Contents/GetLibrary
 
 作品列表优先使用 [fetch_works](operations.md)，读取实验先用 [大实验概览](large-experiments.md)，不要打印完整StatusSave。
 
-原版 SubmitExperiment 路由保留；既有作品文本/标签编辑、GetWorkspace、MoveCategory、IsStarred、RestoreExperiment等具体参数见 [补充接口](practical-api.md)。首次创建模型、封面上传与发布尚无完整验证的HTTP流程，不得根据路由名猜造。制作存档与官方客户端发布见 [实验建模](experiments.md)。
+新建模型、封面上传与读回由CommunityActions.publish或publish_experiment完成。既有作品文字/标签编辑、GetWorkspace、MoveCategory、IsStarred、RestoreExperiment参数见 [补充接口](practical-api.md)。隐藏与删除的区别见 [权限与结果](permissions.md)。

@@ -104,7 +104,7 @@ POST /Users/GetRelations
 |------|------|------|
 | `UserID` | string | 目标用户 ID |
 | `DisplayType` | int | `0` 粉丝（Followed），`1` 关注（Following）；更多筛选值见源码枚举 |
-| `Skip` | int | 服务端分页参数；本轮仅见修改后列表变化，尚不能证明是正确条数偏移，批量遍历前单独核验 |
+| `Skip` | int | 分页参数；首批Skip=0、Take=20 |
 | `Take` | int | 获取条数（默认 20） |
 | `Query` | string | 关系范围内昵称筛选；实测完整昵称可命中，截短昵称未命中，不当作全站模糊搜索 |
 
@@ -187,9 +187,9 @@ POST /Users/ReceiveBonus
 | `ActivityID` | string | 活动 ID |
 | `Index` | int | 奖励索引 |
 
-## 7. 封禁用户（Users/Ban）— 管理员
+## 7. 封禁用户（Users/Ban）— 编辑/管理员
 
-封禁指定用户，需要管理员权限。
+封禁指定用户，编辑或管理员可用。
 
 ### 请求
 
@@ -210,11 +210,11 @@ POST /Users/Ban
 |------|------|------|
 | `TargetID` | string | 被封禁用户 ID |
 | `Reason` | string | 封禁原因 |
-| `Length` | int | 封禁天数（必须大于 0） |
+| `Length` | int | 封禁天数：编辑1–30、管理员1–365；0表示100年 |
 
-## 8. 解封用户（Users/Unban）— 管理员
+## 8. 解封用户（Users/Unban）— 编辑/管理员
 
-解封指定用户，需要管理员权限。
+解封指定用户，编辑或管理员可用。
 
 ### 请求
 
@@ -230,27 +230,7 @@ POST /Users/Unban
 }
 ```
 
-## 9. 获取头像图片
-
-获取用户头像或实验封面图片，无需认证。
-
-### 请求
-
-```http
-GET https://physics-api-cn.turtlesim.com/Avatars/{category}/{target_id}_{index}_{size_category}.png
-```
-
-| 参数 | 说明 |
-|------|------|
-| `category` | `"users"` 用户头像，`"experiments"` 实验封面 |
-| `target_id` | 用户 ID 或实验 ID |
-| `index` | 历史图片索引（通常为 0） |
-| `size_category` | `"small.round"` 小圆头像，`"thumbnail"` 缩略图，`"full"` 完整图 |
-
-### 示例
-
-```
-https://physics-api-cn.turtlesim.com/Avatars/users/5d0f4390ca68215906d1a0fd_0_small.round.png
-```
-
-> 保持TLS验证开启。2026-10-31此形式的头像请求通过证书验证但返回404，图片路由当前有效性未确认。勿批量猜测地址；另见 [网页静态资源路径](practical-api.md#10-活动与图片)。
+## 9. 头像与封面图片
++
++静态资源基址为`https://physics-lab.oss-cn-hongkong.aliyuncs.com`，路径见 [图片路径](practical-api.md#10-活动与图片)。序号使用最新User.Avatar或Summary.Image。上传头像和封面使用 [图片上传方法](uploads.md)。
++

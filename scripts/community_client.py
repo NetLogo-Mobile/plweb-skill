@@ -10,7 +10,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 DOMAINS = ('physics-api-cn.turtlesim.com', 'physics-api-us.turtlesim.com')
 DEVICE = '0d1a760b44023875d2123f2cfcb56dad'
 _SECRET_KEYS = {'token', 'authcode', 'password', 'devicetoken', 'usertoken',
-                'authorization', 'policy', 'x-api-token', 'x-api-authcode'}
+                'authorization', 'policy', 'accesskey', 'login', 'x-api-token', 'x-api-authcode'}
 
 
 def redact(value):
@@ -23,10 +23,17 @@ def redact(value):
 
 
 class CommunityError(RuntimeError):
-    def __init__(self, status, kind='upstream_error'):
+    def __init__(self, status, kind='upstream_error', *, code=None, data=None, http_status=None):
         self.status = status
         self.kind = kind
-        super().__init__(f'{kind} (status={status})')
+        self.code = code
+        self.data = redact(data)
+        self.http_status = http_status
+        super().__init__(f'{code or kind} (status={status})')
+
+    def as_dict(self):
+        return {'ok': False, 'error': self.kind, 'httpStatus': self.http_status,
+                'Status': self.status, 'Message': self.code, 'Data': self.data}
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -84,7 +91,13 @@ class CommunityClient:
                         raw = gzip.decompress(raw)
                     result = json.loads(raw)
             except HTTPError as error:
-                raise CommunityError(error.code, 'http_error') from None
+                try:
+                    payload = json.load(error)
+                except (ValueError, OSError):
+                    payload = {}
+                raise CommunityError(payload.get('Status', error.code), 'http_error',
+                                     code=payload.get('Message'), data=payload.get('Data'),
+                                     http_status=error.code) from None
             except (URLError, TimeoutError, OSError):
                 raise CommunityError(None, 'network_error') from None
             except (ValueError, EOFError):
@@ -92,7 +105,8 @@ class CommunityClient:
             if status != 200 or not isinstance(result, dict):
                 raise CommunityError(status, 'invalid_response')
             if result.get('Status') != 200:
-                raise CommunityError(result.get('Status'), 'business_error')
+                raise CommunityError(result.get('Status'), 'business_error', code=result.get('Message'),
+                                     data=result.get('Data'), http_status=status)
             updates = {}
             if path == '/Users/Authenticate':
                 if (auth and self._session.get('Token') and self._session.get('account_id')

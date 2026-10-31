@@ -9,7 +9,6 @@
 | MoveCategory.Target | `Experiment`、`Discussion` | 目标分区 |
 | GetLibrary.Identifier | `Discussions` | 讨论页；其他 Identifier 使用服务端页面配置，不把任意名称当作有效页 |
 
-Model 是客户端出现的内容分类，可见于标签规则及关联数据；不由此推定所有作品接口都支持 Category=Model。
 
 ## 2. 语言
 
@@ -21,9 +20,9 @@ Model 是客户端出现的内容分类，可见于标签规则及关联数据�
 
 | 字段 | 可填值 | 语义与限制 |
 |---|---|---|
-| Query.Special | `null`、`Favorite`、`Support`、`Star` | null为普通列表；其余来自客户端特殊查询枚举，不保证与任意作者/标签组合兼容 |
+| Query.Special | `null`、`Support`、`Star` | null为普通列表；Support为金币支持列表，Star为收藏列表 |
 | Query.Sort | `0` | 默认排序；不要把不同分区、区域和版本的数字排序含义混用 |
-| Query.Sort 其他线索 | `1`、`2` | 客户端出现的值，不能据名称固定为统一的热门/随机语义 |
+| Query.Sort | `1`、`2` | 1热门、2随机 |
 | GetRelations.DisplayType | `0`、`1` | 粉丝、关注 |
 | GetUser返回Relation | `0`、`1`、`2`、`3` | 无关注、自己关注对方、对方关注自己、互关；它是返回值，不是DisplayType |
 | Follow.Action | `1`、`0` | 关注、取消关注 |
@@ -31,7 +30,7 @@ Model 是客户端出现的内容分类，可见于标签规则及关联数据�
 | StarContent.Type | `0`、`1` | 收藏、金币支持 |
 | StarContent.Status | `true`、`false` | 收藏开关；不能用false退款支持 |
 | PostComment.Special | `null`、`Reminder` | 普通评论、用户警告 |
-| 其他Special线索 | `Locked`、`Anonymous` | 客户端枚举线索，不据此假定可用于任意目标或身份 |
+| PostComment.Special | `Locked`、`Anonymous` | Locked锁定评论、Anonymous匿名评论；按返回Flags读取实际效果 |
 | ModifyInformation.Field | `Signature` | 修改签名；其他资料字段需有可靠参数依据 |
 
 分页采用正数 Take，常用20。不要硬编码“负数都取绝对值”，也不要把库中的-101当作通用可用值。
@@ -53,7 +52,7 @@ Model 是客户端出现的内容分类，可见于标签规则及关联数据�
 
 用户 Verification 中出现的身份值：`Oldtimer`、`Volunteer`、`Junior`、`Emeritus`、`Editor`、`Administrator`、`Banned`；普通身份还可能为空或null。
 
-网页有Teacher翻译线索，不据此当作稳定的管理角色。原生客户端任命菜单包含 Volunteer、Junior、Editor、Emeritus；任命Type不是完整Verification枚举，Oldtimer不能直接作为可用Appoint.Type。封禁正常清除一切身份，解封不补回。
+任命使用Volunteer、Junior、Editor、Emeritus。管理员可任命编辑。封禁清除身份，解封不恢复；封禁天数见permissions.md。
 
 ## 6. 实时标签配置
 

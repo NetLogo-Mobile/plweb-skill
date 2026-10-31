@@ -19,6 +19,7 @@ def parts(payload):
     for key,value in state.items():
         if isinstance(value,list):collections[key]=value
         elif isinstance(value,dict) and isinstance(value.get('$values'),list):collections[key]=value['$values']
+        elif key in ('Elements','Objects','Planets','Wires') and isinstance(value,dict) and all(isinstance(item,dict) for item in value.values()):collections[key]=list(value.values())
     return data,collections
 
 def compact(value,depth=0):

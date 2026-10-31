@@ -94,3 +94,20 @@ works/comments文件分别是上文queries/targets的数组本身；batch文件�
 `CommunityClient.from_saved(account_id, domain=...)` 在进程内部读取会话，`CommunityReads(api.request)` 可直接接入。AI不得打印api内部认证状态。`python scripts/community_cli.py --help` 提供账号列表、移除会话、实时标签、批量请求、指定数量评论/作品和大实验概览入口；不会接受命令行密码。示例里的read_community/write_community属于可选托管工具名；在本仓库对应call_batch，不是额外服务端路由。
 
 Messages/GetMessages虽然业务名称为读取，但首批可能改变聚合未读计数，与GetMessage、SendMessages一起放在write=True白名单。SendMessages单次和整批的目标用户数仍受20人总限额约束。
+
+## 发布、图片和合作者
+
+```python
+from community_actions import CommunityActions
+actions = CommunityActions(api)
+result = actions.publish(archive_path, title="标题", description="介绍", tags=tag_identifiers)
+avatar_result = actions.set_avatar(image_path)
+cover_result = actions.set_cover(summary_id, image_path)
+invitation = actions.invite_coauthor(summary_id, target_id)
+accepted = actions.handle_invitation(message_id)
+removed = actions.remove_coauthor(summary_id, target_id)
+```
+
+publish默认按模型生成并上传封面，亦可指定cover图片。run_batch接收1到20个`{action,args}`任务，支持publish/avatar/cover/remove/restore/invite/remove_coauthor/accept_invitation，最多两个工作线程。CLI使用actions --input任务数组.json；云端用run_actions，整批固定账号。
+
+fetch_messages与fetch_supporters按Skip条数续页，最多20条并返回nextOffset。消息读取会更新未读提示，按收件箱任务调用。

@@ -1,6 +1,6 @@
 # API 返回体结构参考
 
-原版字段说明参考 `physics-lab-turtle-services` 的 `BaseController`、`Quantum Models` 和控制器；这些后端源码未随公共仓库分发。保留其模型说明，并区分已实测行为与尚未逐项核验的枚举。不同版本、权限、匿名脱敏、作品类别和空值会让实例略有差异，实际处理须兼容真实返回。
+本页说明响应外壳、返回对象与字段，解析时兼容直接数组和$values包装。
 
 ## 1. 通用外壳
 
@@ -149,7 +149,7 @@ Newtonsoft JSON 的 `TypeNameHandling.Auto` 会令某些多态对象或数组带
 | `Image` / `ImageRegion` | 封面序号和存储区域，不是图片内容本身。 |
 | `ContentID` | 关联的实验保存 ID；可能为空，和摘要 `ID` 不要混为一谈。 |
 | `Description` / `LocalizedDescription` | 描述段落数组或多语言文本对象；可能因裁剪/本地化策略缺省。 |
-| `Visibility` | 原版模型说明：0 Public、1 Private、2 Hidden、3 Removed；与网页隐藏行为的旧说明不一致，本轮未做写入验证，不能只凭数字推断删除/恢复结果。没有权限时作品可能不会返回。 |
+| `Visibility` | 0公开、1作者隐藏、2管理隐藏；删除后可能返回权限错误而不返回摘要。 |
 | `Visits`、`Stars`、`Supports`、`Remixes`、`Comments` | 访问、普通点赞、支持、衍生和评论计数。 |
 | `CreationDate`、`UpdateDate`、`SortingDate` | 模型中的 `long` 时间值；通常是 Unix 毫秒。应检查数据并按毫秒解析，不按 ISO 字符串解析。 |
 
@@ -183,7 +183,7 @@ Newtonsoft JSON 的 `TypeNameHandling.Auto` 会令某些多态对象或数组带
 }
 ```
 
-`Type` 是实验类型枚举：`-1` Unloaded、`0` Circuit、`1` Diagram、`2` Optics、`3` Celestial、`4` Electromagnet、`5` Mechanics。保存内容位于 `StatusSave`、`CameraSave`、`Plots` 等字段，并非 `Data.Content` 字符串。它们可能包含很大的客户端序列化数据；读取后应原样保留未知字段。
+`Type` 常用值：0电路、3天体、4电磁。保存内容位于 `StatusSave`、`CameraSave`、`Plots` 等字段，并非 `Data.Content` 字符串。它们可能包含很大的客户端序列化数据；读取后应原样保留未知字段。
 
 ### 4.4 衍生作品：`Contents/GetDerivatives`
 

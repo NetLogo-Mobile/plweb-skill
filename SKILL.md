@@ -5,7 +5,7 @@ description: 面向 Physics Lab / 物理实验室 AR 社区 API 的实用指南�
 
 # 物理实验室 AR 社区 API 调用技能
 
-本技能说明如何调用「物理实验室 AR」（Physics Lab / 烧杯实验室）社区 API。原版端点与字段说明参考 `physics-lab-turtle-services` 的 `Quantum API/Controllers`、`Quantum Models` 和 `Quantum Logics`；这些后端目录未随本仓库分发。有对应版本源码时可核对，否则以已验证的请求与真实响应为依据，不要求读取不存在的父目录。写操作前先确认目标 ID、权限和影响范围。
+通过社区HTTP接口完成读取、编辑、图片上传、发布和管理，随附Python脚本负责认证、分页、文件与批量处理。
 
 ## 快速上手
 
@@ -13,12 +13,12 @@ description: 面向 Physics Lab / 物理实验室 AR 社区 API 的实用指南�
 2. 先匿名登录或用用户明确提供的账号登录。首次账号登录运行 `python scripts/login_gui.py`，由用户在简单本地窗口输入账号和密码；后续由辅助程序内部使用安全保存的会话。AI不得观察敏感输入或读取、回显密码及Token/AuthCode；已有明确授权的秘密来源按授权范围处理。详见 [安全登录](docs/local-login.md)。匿名登录适合读取公开数据，不能假定它具备写权限。
 3. 除明确为 GET 的路由外，使用 `POST` JSON，并检查响应 JSON 的 `Status`、`Message` 和 `Data`；HTTP 200 本身不代表业务成功。
 4. 需要认证的请求同时带 `x-API-Token` 与 `x-API-AuthCode`。登录响应顶层或后续响应头可能提供更新值。
-5. 作品列表保持 `Skip=0`，`From` 传末条摘要ID；评论用末条 `CommentID`，边界按ID去重。不能递增Skip当条数偏移；其他列表分别核验。优先用 [自动分页与批量](docs/operations.md) 的脚本，每批评论总计最多1000条、作品或用户最多20个，最多两个工作线程和两个请求并发。
+5. 作品列表保持 `Skip=0`，`From` 传末条摘要ID；评论用末条 `CommentID`，边界按ID去重。不能递增Skip当条数偏移；通知和支持者列表用Skip条数续页。优先用 [自动分页与批量](docs/operations.md) 的脚本，每批评论总计最多1000条、作品或用户最多20个，最多两个工作线程和两个请求并发。
 6. 发布、删除、评论、关注、点赞等写操作先读取并确认目标，再执行并检查响应。会影响真实社区的操作须有用户明确指示。
 
 端到端 Python 示例见 [`docs/quickstart.md`](docs/quickstart.md)。
 
-返回 JSON 的字段含义、对象嵌套、数组包装和各接口 `Data` 类型见 [`docs/responses.md`](docs/responses.md)。使用响应时以该页字段表为参考；源码未随包提供的枚举和路由须保留验证状态。
+返回 JSON 的字段含义、对象嵌套、数组包装和各接口 `Data` 类型见 [`docs/responses.md`](docs/responses.md)。使用响应时以该页字段表为参考。
 
 ## 一、API 概览
 
@@ -61,7 +61,7 @@ description: 面向 Physics Lab / 物理实验室 AR 社区 API 的实用指南�
 
 ### 路由与源码的对应
 
-以服务端控制器为准：用户接口在 `Users`，内容/实验在 `Contents`，评论接口也由 `Messages` 控制器提供。点赞端点是 `Contents/StarContent`；发布入口为 `Contents/SubmitExperiment`，可能需要后续 `ConfirmExperiment`。查询字段参见 `Quantum Models/Contents/ExperimentQuery.cs`。旧字段示例与源码不一致时，以控制器实际读取字段和模型定义为准。
+以服务端控制器为准：用户接口在 `Users`，内容/实验在 `Contents`，评论接口也由 `Messages` 控制器提供。点赞端点是 `Contents/StarContent`；发布使用 `publish_experiment`，由它完成SubmitExperiment、封面上传与ConfirmExperiment。查询字段参见 `Quantum Models/Contents/ExperimentQuery.cs`。旧字段示例与源码不一致时，以控制器实际读取字段和模型定义为准。
 
 ### 身份认证
 
@@ -182,7 +182,7 @@ Content-Type: application/json
 | 接口 | 路径 | 方法 | 说明 |
 |------|------|------|------|
 | 社区首页 | `Users` | GET | 获取首页导航数据 |
-| 获取头像/封面 | `https://<domain>/Avatars/...` | GET | 获取用户头像或实验封面图 |
+| 获取头像/封面 | 静态资源路径，见practical-api.md | GET | 按用户/摘要ID与最新图片序号读取 |
 
 ## 四、枚举值参考
 
@@ -209,7 +209,7 @@ Content-Type: application/json
 - `0` — 粉丝
 - `1` — 关注
 
-不要传字符串 `"Following"`：实测虽成功却回退到粉丝列表。其他扩展整数见 responses.md，未在本轮逐项核验。
+不要传字符串 `"Following"`：实测虽成功却回退到粉丝列表。扩展整数见 responses.md。
 
 ## 五、调用示例
 
@@ -250,7 +250,7 @@ curl -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments" \
 4. **频率限制**：所有批量任务最多两个工作线程、两个请求并发并错开启动。评论总计最多1000条，作品或用户最多20个；不自行拆批绕过，遇429/503停止未开始的请求，不自动重试。
 5. **Version 字段**：登录时的 `Version` 是客户端版本整数（常见格式 `YYMM`）；示例值会过时，应使用目标客户端实际版本，不要机械复制。
 6. **返回体解析**：列表可能直接是 JSON 数组，也可能包装为 `{"$type":"...","$values":[...]}`；部分接口的 `Data` 是包含数组的对象包（例如 `Messages`、`Comments`），先按接口响应说明取对应属性。
-7. **管理员接口**：`Ban`、`Unban` 等接口需要管理员权限，普通用户调用会返回权限错误。
+7. **管理员接口**：Ban/Unban允许编辑和管理员调用，志愿者不能封禁；管理员可以任命编辑。
 8. **实验内容格式**：实验内容（`GetExperiment` 返回的 `Data`）为序列化的电路/天体物理模型 JSON，结构复杂，修改时需保留原有结构。
 
 ## 八、扩展执行能力
@@ -259,9 +259,15 @@ curl -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments" \
 - [分页与定位目标](docs/finding.md)：支持精确昵称定位；作品标题和模糊昵称在有界候选中本地匹配，不虚构全站搜索接口。
 - [指定数量与批量](docs/operations.md)：随附 `scripts/community_reads.py`；使用 `scripts/community_client.py` 的安全请求适配器。
 - [大实验概览与分页](docs/large-experiments.md)：`GetExperiment` 完整JSON只留在文件/代码进程，先概览再分页，禁止全文输出到聊天。
-- [本地建模与授权发布](docs/experiments.md)：用 physicslab 本地模块创建元件、导线和存档，不使用该库网络模块；没有官方客户端仿真就标注未验证。
-- [补充业务接口与副作用](docs/practical-api.md)、[语言/角色/实时标签](docs/practical-values.md)、[尚待核实的接口线索](docs/interface-notes.md)。原有响应结构与接口文档继续保留。
+- [实验建模与发布](docs/experiments.md)：使用本地模块创建电路、天体和电磁存档，发布方法提交模型并自动上传封面；
+- [补充业务接口与副作用](docs/practical-api.md)、[语言/角色/实时标签](docs/practical-values.md)、[发布、图片与合作者接口](docs/interface-notes.md)。原有响应结构与接口文档继续保留。
 
-支持、删除/隐藏可能扣币；封禁清除身份，解封不恢复身份。写入先核对对象与任务授权，完成后读回核验；超时不自动重放。用户只要求制作实验时交付存档；明确要求发布才通过正常客户端流程发布并读回验证。
+支持、删除/隐藏可能扣币；封禁清除身份，解封不恢复身份。写入先核对对象与任务授权，完成后读回核验；超时不自动重放。用户只要求制作实验时交付存档；明确要求发布时调用发布方法并读回验证。
 
 仓库附带的脚本可在本地或具备Python执行能力的环境运行；托管站点/MCP的连接状态、私人下载链接、远程工具不是本仓库默认具备的服务。无执行环境时不能声称已经运行建模或调用本地辅助函数。
+
+## 九、完整操作入口
+
+优先使用 `CommunityClient` + `CommunityReads` + `CommunityActions`；`community_cli.py`提供统一入口。发布默认生成并上传封面；头像上限1MB。图片与邀请字段见 [完整操作参数](docs/interface-notes.md)、[图片上传](docs/uploads.md)。隐藏、删除、角色与封禁参数见 [权限与结果](docs/permissions.md)。邀请只支持接受，不处理即忽略。
+
+云端工具提供publish_experiment、upload_avatar、upload_cover、manage_coauthors、handle_invitation、remove_work、restore_work、fetch_messages和fetch_supporters；较大文件先store_file_chunk。批量高级操作使用run_actions，每批最多20项、两个工作线程，整批固定账号。不要在聊天中展开完整模型或上传凭据。

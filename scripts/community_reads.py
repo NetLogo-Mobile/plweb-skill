@@ -11,6 +11,7 @@ _start_lock = Lock()
 _next_start = 0.0
 _READ_PATHS = {"/Contents/GetLibrary","/Contents/QueryExperiments","/Contents/GetSummary","/Contents/GetExperiment","/Contents/GetWorkspace","/Contents/GetDerivatives","/Contents/GetProfile","/Contents/GetSupporters","/Contents/IsStarred","/Messages/GetComments","/Users/GetUser","/Users/GetRelations"}
 _WRITE_PATHS = {"/Contents/SubmitExperiment","/Contents/MoveCategory","/Contents/StarContent","/Contents/RemoveExperiment","/Contents/RestoreExperiment","/Contents/ConfirmExperiment","/Messages/PostComment","/Messages/RemoveComment","/Messages/GetMessages","/Messages/GetMessage","/Messages/SendMessages","/Users/Follow","/Users/Block","/Users/Rename","/Users/ModifyInformation","/Users/SetCover","/Users/Ban","/Users/Unban","/Users/Appoint","/Users/SyncActivities","/Users/ReceiveBonus","/Users/Logout"}
+_WRITE_PATHS.update({'/Contents/VisitExperiment','/Contents/InviteCoauthor','/Contents/RemoveCoauthor','/Messages/HandleInvitation','/Users/RequestAvatar','/Users/ConfirmAvatar'})
 
 def _array(value):
     if isinstance(value, list):
@@ -113,7 +114,7 @@ class CommunityReads:
             except Exception as error:
                 if getattr(error,"status",None) in (429,503):
                     halt.set()
-                return {"index":index,"ok":False,"errorType":type(error).__name__}
+                return {"index":index,"ok":False,**(error.as_dict() if hasattr(error,'as_dict') else {"errorType":type(error).__name__})}
         with ThreadPoolExecutor(max_workers=2) as pool:
             return list(pool.map(run, enumerate(jobs)))
 
@@ -146,6 +147,33 @@ class CommunityReads:
         if not names or len(names)>20 or any(not isinstance(n,str) or not n for n in names):
             raise ValueError("Provide 1 to 20 exact nicknames")
         return self._batch(list(dict.fromkeys(names)), lambda name:self._request("/Users/GetUser", {"Name":name}))
+
+    def _offset_list(self,path,body,key,count,offset=0,page_size=20):
+        _check_count(count,20)
+        if not isinstance(offset,int) or isinstance(offset,bool) or offset<0:raise ValueError('offset must be non-negative')
+        items,seen,pages=[],set(),0
+        reason='requested_count'
+        while len(items)<count:
+            take=min(max(1,min(page_size,20)),count-len(items))
+            result=self._request(path,{**body,'Skip':offset,'Take':take})
+            data=result.get('Data');rows=_array(data.get(key) if key and isinstance(data,dict) else data)
+            pages+=1
+            if not rows:reason='exhausted';break
+            before=len(items)
+            for row in rows:
+                identifier=row.get('ID')
+                if identifier and identifier not in seen:items.append(row);seen.add(identifier)
+            offset+=len(rows)
+            if len(items)==before:reason='no_progress';break
+            if len(rows)<take:reason='exhausted';break
+        return {'requested':count,'returned':len(items),'complete':len(items)==count,'stopReason':reason,'pages':pages,'nextOffset':offset,'items':items}
+
+    def fetch_supporters(self,summary_id,count=20,category='Experiment',offset=0,page_size=20):
+        return self._offset_list('/Contents/GetSupporters',{'Category':category,'ContentID':summary_id},None,count,offset,page_size)
+
+    def fetch_messages(self,count=20,category_id=0,offset=0,page_size=20):
+        """Reads the inbox and may reset unread counters; call only for a requested inbox task."""
+        return self._offset_list('/Messages/GetMessages',{'CategoryID':category_id,'NoTemplates':False},'Messages',count,offset,page_size)
 
     def get_available_tags(self, category=None):
         result = self._request("/Users/Authenticate", {"Login":None,"Password":None,"Version":2411,"Device":{"Identifier":"0d1a760b44023875d2123f2cfcb56dad","Language":"Chinese"}})

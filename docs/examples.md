@@ -15,7 +15,7 @@ import time
 # 从仓库根目录运行；作为其他项目依赖时将scripts加入模块路径。
 import sys
 sys.path.insert(0, "scripts")
-from community_client import redact
+from community_client import redact, CommunityError
 
 
 class PhysicsLabAPI:
@@ -55,7 +55,7 @@ class PhysicsLabAPI:
                     content = resp.read()
                 result = json.loads(content)
                 if result.get("Status") != 200:
-                    raise RuntimeError(f"Community request failed: {result.get('Status')}")
+                    raise CommunityError(result.get("Status"), "business_error", code=result.get("Message"), data=result.get("Data"), http_status=resp.status)
                 if path == "Users/Authenticate":
                     self.token = result.get("Token")
                     self.auth_code = result.get("AuthCode")

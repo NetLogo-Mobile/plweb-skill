@@ -136,7 +136,7 @@ Token 登录：`Login=null, Password=null`，请求头携带已有凭据。匿�
 
 作品分页固定筛选条件和排序，保持 `Skip=0`，每次用上一页末尾作品的摘要 ID 推进 `Query.From`，用 `SortingDate` 记录并核对时间范围。`Skip` 传条数无效，会反复返回同页。当前接口实测不接受直接传毫秒或 ISO 时间；不要把时间方向的游标误写为原始时间参数。按摘要 ID 去重，遇空页、游标不推进或整页无新增 ID 时停止；不凭样本断言全站不存在。细节见 [分页与查找目标](finding.md)。负数 Take 可被拒绝，不依赖 `-101`。
 
-`GetSupporters` 的完整分页协议未核对，只读取所需首批并说明范围，不能假定Skip是正确条数偏移，也不能擅自补From或复制作品列表分页协议。
+GetSupporters使用Skip条数和Take分页，指定数量可用fetch_supporters，返回nextOffset。
 
 ## 3. 编辑作品、标签与移动
 
@@ -198,7 +198,7 @@ const payload = {
 {"Category":"Discussion","SummaryID":"<摘要ID>","Hiding":true,"Reason":"<操作理由>"}
 ```
 
-删除、隐藏作品会扣金币。`Hiding=true` 是隐藏调用形式；不要把所有删除操作都描述成物理删除，也不要自行推断 `Hiding=false` 的删除策略。删除与隐藏都可能留下管理记录，费用不会因恢复自动返还。
+`Hiding=true`隐藏作品：作者隐藏为Visibility=1，管理隐藏为Visibility=2，可用RestoreExperiment恢复。`Hiding=false`从服务器直接删除作品，不能恢复。隐藏会扣除作者100金币，删除也会扣金币，恢复隐藏不退还费用。
 
 ### POST /Contents/RestoreExperiment
 
@@ -206,7 +206,7 @@ const payload = {
 {"Category":"Discussion","SummaryID":"<摘要ID>","Reason":"<恢复理由>"}
 ```
 
-恢复后重新读取摘要并核对可见性。Visibility映射参考responses.md；旧网页说明与后端枚举存在冲突，未经写入核验不能仅凭数字断言已隐藏/恢复。恢复不是 `RemoveExperiment(Hiding=false)` 的同义替代。
+恢复隐藏后重新读取摘要核对Visibility=0。作者隐藏为1，管理隐藏为2；恢复不是 `RemoveExperiment(Hiding=false)` 的同义替代。
 
 ## 6. 评论、回复、@ 与警告
 
@@ -246,7 +246,7 @@ const payload = {
 
 ### POST /Messages/RemoveComment
 
-请求：`{TargetType:string, CommentID:string}`。只删除任务范围内的评论；成功 Data 可以为字符串。删除后按目标重新读取确认，已发通知与管理记录不等于同步撤回。
+请求：`{TargetType:string, CommentID:string}`。只删除任务范围内的评论；成功Data为字符串。删除后按目标重新读取确认，已发通知与管理记录不等于同步撤回。
 
 ## 7. 通知
 
@@ -256,7 +256,7 @@ const payload = {
 {"CategoryID":0,"Skip":0,"Take":20,"NoTemplates":false}
 ```
 
-返回 `Data.Messages`，模板位于 `Data.Templates`。按对方后端说明，GetMessages首批可能清零聚合未读计数，属于有状态读取；本轮未以收件箱实测验证。首次取 `NoTemplates=false` 获取模板，后续页可为 true 并复用模板；模板 ID 或配置变化时重新获取。分类 0–5 见 practical-values.md。当前只保证首批；通知分页协议未核验，不擅自补From或宣称Skip能正确遍历。
+返回 `Data.Messages`，模板位于 `Data.Templates`。GetMessages首批读取会清零聚合未读提示。首次取 `NoTemplates=false` 获取模板，后续页可为 true 并复用模板；模板 ID 或配置变化时重新获取。分类 0–5 见 practical-values.md。通知使用Skip条数分页，fetch_messages自动循环并返回nextOffset。
 
 消息包含 `ID`、`CategoryID`、`TemplateID`、`Users`、`UserNames`、`Fields`、`Numbers`、`Unread`、`Handled` 等。按 TemplateID 关联模板，用 Subject/Content 的语言字段生成标题和正文；缺少模板时可回退到 `Fields.Content`。
 
@@ -287,7 +287,7 @@ const payload = {
 | 接口 | JSON 字段 | 含义和要点 |
 |---|---|---|
 | `/Users/GetUser` | `{ID:string}` 或 `{Name:string}` | 按ID或完整昵称读取；实测Name精确定位可用，两者同时传时ID优先。不等于模糊搜索 |
-| `/Users/GetRelations` | `UserID:string, DisplayType:integer, Query:string, Skip:integer, Take:integer` | 关系列表在 `$values`；0粉丝、1关注。Query可在关系范围按精确昵称筛选，非全站模糊搜索；Skip语义和完整续页先单独核验 |
+| `/Users/GetRelations` | `UserID:string, DisplayType:integer, Query:string, Skip:integer, Take:integer` | 关系列表在 `$values`；0粉丝、1关注。Query在关系范围按完整昵称筛选；默认Take=20、Skip=0 |
 | `/Users/Follow` | `TargetID:string, Action:integer` | 1关注、0取消；Relation读回核对 |
 | `/Users/Block` | `TargetID:string, Action:integer` | 屏蔽状态操作；自目标被拒绝，关系副作用不可假定完全可恢复 |
 | `/Users/Rename` | `UserID:string, Target:string` | Target为新昵称；同名可报重复，成功后重读确认 |
@@ -303,11 +303,11 @@ Relation 的已知值：0无互关、1自己关注对方、2对方关注自己�
 
 | 接口 | JSON 字段 | 行为 |
 |---|---|---|
-| `/Users/Ban` | `TargetID:string, Reason:string, Length:integer` | 封禁天数为正整数；封禁清除一切身份 |
+| `/Users/Ban` | `TargetID:string, Reason:string, Length:integer` | 封禁天数为非负整数；0为100年，编辑最多30天，管理员最多365天；封禁清除身份 |
 | `/Users/Unban` | `TargetID:string, Reason:string` | 解除封禁，不恢复原身份 |
 | `/Users/Appoint` | `TargetID:string, Type:string, Length:integer, Reason:string` | 角色任命；Type及任期必须符合服务端要求 |
 
-Appoint 的客户端角色选项包括 Volunteer、Junior、Editor、Emeritus；不要由 Verification 枚举推导所有角色都可任命。Oldtimer 不能直接作为可用 Type；Type校验失败不通过变体猜测绕过。
+管理员任命编辑时使用Type="Editor"，其余字段为目标ID、任期和理由。
 
 任命、解除、封禁会产生通知或管理记录。用户只要求封禁/解封时，不附带恢复原角色的任命操作。
 
@@ -319,9 +319,7 @@ Appoint 的客户端角色选项包括 Volunteer、Junior、Editor、Emeritus；
 | `/Users/ReceiveBonus` | `ActivityID:string, Index:integer, Statistic:object` | 使用服务端活动ID、奖励索引及原Statistic；领取状态不可完整撤销 |
 | `/Contents/ConfirmExperiment` | `Category:string, SummaryID:string, Image:integer, Extension:string` | 确认图片索引；不是完整文件上传协议 |
 
-图片上传还涉及 SubmitExperiment 的 `Request:{Extension:string,FileSize:integer}` 和 Data.Token 中的 Policy、Authorization。旧网页流程会先 Confirm，再 Submit，上传后再次 Confirm，并存在负 FileSize 及 .jpg/.png 混用；不能把这些特殊形式推广成稳定的通用上传协议。需要上传时，先核对网页的完整协议，不自行补齐未知字段。
-
-网页文件上传地址：`POST https://v0.api.upyun.com/qphysics`，multipart字段为 `authorization`、`policy`、`file`；只使用针对目标对象正常取得的上传凭据，不转发账号Token。
+完整头像、封面上传由CommunityActions或云端上传工具完成，参数和顺序见 [图片上传](uploads.md)。头像最大1MB；新建发布由publish方法完成模型与封面提交。
 
 网页静态资源基址：`https://physics-lab.oss-cn-hongkong.aliyuncs.com`。
 
@@ -332,14 +330,16 @@ Appoint 的客户端角色选项包括 Volunteer、Junior、Editor、Emeritus；
 
 ## 按名称找用户或作品
 
-支持GetUser(Name)精确昵称定位与关系范围精确筛选，未确认全站模糊昵称或作品标题搜索接口。先按链接/ID定位，或缩小已知作者、分类、标签和时间范围，按时间取回候选后本地匹配，再按 ID 核验。完整步骤、同名处理和停止条件见 [分页与查找目标](finding.md)。
+支持GetUser(Name)精确昵称定位与关系范围精确筛选，模糊昵称或作品标题通过候选列表在本地匹配。先按链接/ID定位，或缩小已知作者、分类、标签和时间范围，按时间取回候选后本地匹配，再按 ID 核验。完整步骤、同名处理和停止条件见 [分页与查找目标](finding.md)。
 
 ## 11. 技能辅助接口
 
 fetch_comments / fetch_works 自动循环取得指定数量，并支持多个目标/作者 ID；get_available_tags 实时读取完整标签配置。read_community/write_community 兼容 body 或多个 bodies。全部按两个并发、每批评论1000条/作品或用户20个执行，超限拒绝。工具不是新增社区端点，具体参数和通用版 Python 用法见 [自动分页与批量接口](operations.md)。
 
-本地生成实验及官方客户端授权发布见 [实验建模与发布](experiments.md)。不使用 physicslab 网络模块，既有 SubmitExperiment 编辑协议不等于新建模型/上传协议已经核实。
+本地生成与发布见 [实验建模与发布](experiments.md)。
 
 ## 12. 大实验输出边界
 
 插件读取 GetExperiment 默认返回 inspect_experiments 的有界概览与私人归档引用，不再内联原始 Data/StatusSave。用 read_experiment_page 按集合、offset、limit（最多20）和 fields 取片段；这属于文件切片，不是社区 Skip 分页。通用版用 CommunityReads.inspect_experiments 与 experiment_view.py。完整数据留在文件/代码进程中，详见 [大实验概览与分页](large-experiments.md)。
+
+邀请、合作者、访问记录和图片的完整字段见 [操作参数](interface-notes.md)。
