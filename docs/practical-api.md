@@ -365,7 +365,7 @@ Relation 的已知值：0无互关、1自己关注对方、2对方关注自己�
 
 - 头像：`/users/avatars/{ID[0:4]}/{ID[4:6]}/{ID[6:8]}/{ID[8:24]}/{序号}.jpg{后缀}`。
 - 封面：`/experiments/images/{ID[0:4]}/{ID[4:6]}/{ID[6:8]}/{ID[8:24]}/{序号}.jpg{后缀}`。
-- 后缀可为空；网页网络策略还使用 `!block`、`!tiny.round`、`!small.round`。
+- 这里的后缀是图片处理样式，并非Extension。后缀可为空；网页网络策略还使用 `!block`、`!tiny.round`、`!small.round`。
 - 序号、ImageRegion、AvatarRegion以服务端对象为准；图像不存在或区域不匹配时不猜测大量地址。保持TLS验证开启。
 
 ## 按名称找用户或作品

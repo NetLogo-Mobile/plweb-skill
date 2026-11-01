@@ -279,3 +279,5 @@ curl -X POST "https://physics-api-cn.turtlesim.com/Contents/QueryExperiments" \
 ## 精选与知识库管理
 
 精选固定使用 `SelectExperiment`，知识库固定使用 `AcknowledgeExperiment` 且 `Tag="知识库"`，均用布尔 `Status` 添加或撤销。编辑可操作精选和知识库，志愿者可操作知识库。知识库作品不能带“小作品”标签；普通标签修改不能替代这两个接口。使用 `CommunityActions.set_featured_batch/set_knowledge_base_batch` 或云端 `set_featured/set_knowledge_base`，每批最多20个摘要ID、两个工作线程，逐项读回Tags确认。参数和示例见 [管理接口](docs/practical-api.md#精选与知识库)。
+
+查找作品去向和近期事件可读取通知；移动分区后旧Category可能查不到同一ID，按通知或有限的跨分区读取核对当前Category，不能直接判断已删除。见 [通知与移动记录](docs/finding.md#从通知和移动记录继续查找)。

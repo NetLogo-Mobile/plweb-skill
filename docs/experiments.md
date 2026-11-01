@@ -34,3 +34,11 @@ python scripts/community_cli.py --account <用户ID> publish --archive <文件.p
 大型存档和图片先分块调用 `store_file_chunk`，`kind` 选 `archive` 或 `image`，`encoding` 选 `utf8` 或 `base64`，单块不超过60000字符。首块index=0且不传file_id，续块传上一响应的 `plugin_file_id` 作为file_id，index连续递增，末块complete=true。返回 `plugin_file_id`（`fileId`同值）具有 `plfile_` 前缀；不是ChatGPT附件ID。发布传 `source="plugin_file"` 与 `archive_file_id`，图片工具传 `image_source="plugin_file"` 与 `image_file_id`。完整模型在文件和程序中处理，不全文输出到聊天。
 
 本地建模示例验证存档构造、保存和重载；实验说明中的测量值应来自实际计算或测量。模型类型0为电路、3为天体、4为电磁。
+
+## 坐标、朝向与封面
+
+内置库使用 `Position(x,y,z)`：y为高度，电路通常放在x-z平面（y=0）；相邻元件改变x或z。存档中的Position字符串按 `x,z,y` 序列化，例如 `Position(1,0,2)` 保存为 `"1,2,0"`，不要将存档第三个分量当作平面纵轴。Rotation也按x,z,y序列化，电路元件构造器默认 `Rotation(0,0,180)`，按具体元件的构造参数设置朝向。
+
+默认封面为800×600（4:3）的简化布局预览，按x-z投影并保持比例，显示导线、简化元件符号和编号；编号对应Elements顺序。它不复现完整三维外观和旋转。需要文字标题、详细外观或特定视角时提供自定义封面，按4:3设计并留出边距。
+
+发布时传入tags默认与存档原标签合并，保留“禁止改编”等既有标签；只有明确指定 `replace_tags=true`（命令行 `--replace-tags`）才替换普通标签，Type-*仍保留。发布前核对实时标签及冲突，不能静默去掉原存档限制标签。

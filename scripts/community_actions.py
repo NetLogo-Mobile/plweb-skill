@@ -1,5 +1,7 @@
 """Publishing, image uploads and invitation actions; all requests stay in one account."""
 import base64
+import binascii
+import hashlib
 import json
 import mimetypes
 from pathlib import Path
@@ -8,12 +10,36 @@ from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 import uuid
 from community_client import CommunityError, _NoRedirect, redact
+from image_integrity import validate_image,assess_png
 
 MAX_AVATAR_BYTES = 1024 * 1024
 MAX_COVER_BYTES = 8 * 1024 * 1024
+STATIC_BASE = 'https://physics-lab.oss-cn-hongkong.aliyuncs.com'
 
 
-def image_file(path, maximum):
+def upload_target(token):
+    if token.get('RequestHost'):
+        path=token.get('RequestURI')
+    else:
+        try:path=json.loads(base64.b64decode(token['Policy']))['save-key']
+        except (ValueError,KeyError,TypeError,binascii.Error):raise ValueError('Upload policy has no concrete save-key') from None
+    if not isinstance(path,str) or not path or any(x in path for x in ('..','?', '#', '://', '{', '}')):raise ValueError('Invalid upload target')
+    return '/'+path.lstrip('/')
+
+
+def verify_image(path,allow_blank_image=False):
+    url=STATIC_BASE+path
+    try:
+        with build_opener(_NoRedirect()).open(Request(url,headers={'Cache-Control':'no-cache'}),timeout=25) as response:
+            header=response.read(MAX_COVER_BYTES+1)
+            valid=header.startswith(b'\x89PNG\r\n\x1a\n') or header.startswith(b'\xff\xd8\xff') or header[:4]==b'RIFF' and header[8:12]==b'WEBP'
+            if valid and len(header)<=MAX_COVER_BYTES:validate_image(header)
+            assessment=assess_png(header) if valid and len(header)<=MAX_COVER_BYTES else None
+            return {'verified':response.status==200 and valid and len(header)<=MAX_COVER_BYTES and (allow_blank_image or not assessment or not assessment['uniform']),'url':url,'httpStatus':response.status,'contentType':response.headers.get('Content-Type'),'cacheControl':response.headers.get('Cache-Control'),'assessment':assessment}
+    except Exception as error:return {'verified':False,'url':url,'httpStatus':getattr(error,'code',None),'error':type(error).__name__}
+
+
+def image_file(path, maximum, allow_blank_image=False):
     file = Path(path)
     if not 0 < file.stat().st_size <= maximum:
         raise ValueError(f'Image must be 1..{maximum} bytes')
@@ -22,6 +48,9 @@ def image_file(path, maximum):
              or data[:4] == b'RIFF' and data[8:12] == b'WEBP')
     if not valid:
         raise ValueError('Use a JPEG, PNG or WebP image')
+    validate_image(data)
+    assessment=assess_png(data)
+    if assessment and assessment['uniform'] and not allow_blank_image:raise ValueError('The image is blank, transparent or a solid color; select the intended image. Only allow_blank_image=True explicitly permits this.')
     return data
 
 
@@ -29,6 +58,7 @@ def upload_image(data, token):
     """Use only the storage host and short-lived form authorization returned by the API."""
     host = token.get('RequestHost')
     uri = token.get('RequestURI')
+    target=upload_target(token)
     if not isinstance(uri, str) or not uri:
         raise ValueError('Upload credential has no RequestURI')
     fields = {}
@@ -55,7 +85,14 @@ def upload_image(data, token):
         with build_opener(_NoRedirect()).open(request, timeout=40) as response:
             if not 200 <= response.status < 300:
                 raise CommunityError(response.status, 'image_upload_failed')
-            response.read(4096)
+            raw=response.read(16384)
+            try:result=json.loads(raw) if raw.strip() else {}
+            except ValueError:result={}
+            if not host and (not isinstance(result,dict) or result.get('code')!=200 or not isinstance(result.get('url'),str)):raise CommunityError(502,'invalid_upload_response')
+            if isinstance(result,dict) and 'code' in result and result['code']!=200:raise CommunityError(result['code'],'image_upload_failed',code=str(result.get('message','')))
+            actual=result.get('url') if isinstance(result,dict) else None
+            if actual is not None and actual!=target:raise CommunityError(502,'upload_target_mismatch',data={'expectedPath':target,'actualPath':actual})
+            return {'path':target,'storageCode':result.get('code') if isinstance(result,dict) else None,'storageMessage':result.get('message') if isinstance(result,dict) else None}
     except Exception as error:
         if isinstance(error, CommunityError):raise
         raise CommunityError(getattr(error, 'code', None), 'image_upload_failed') from None
@@ -65,7 +102,7 @@ class CommunityActions:
     def __init__(self, api):
         self.api = api
 
-    def publish(self, archive, *, title=None, description=None, tags=None, category='Experiment', cover=None):
+    def publish(self, archive, *, title=None, description=None, tags=None, category='Experiment', cover=None, replace_tags=False):
         if isinstance(archive, (str, Path)):
             file = Path(archive)
             if file.stat().st_size > 32 * 1024 * 1024:raise ValueError('Archive exceeds 32MB')
@@ -81,45 +118,51 @@ class CommunityActions:
                         'Language':summary.get('Language') or 'Chinese',
                         'User':{'ID':self.api._session.get('account_id')}, 'Coauthors':[]})
         if description is not None:summary['Description']=description.splitlines() if isinstance(description,str) else description
-        if tags is not None:summary['Tags']=list(dict.fromkeys([tag for tag in summary.get('Tags',[]) if str(tag).startswith('Type-')]+tags))
+        if summary.get('Description') is None:summary['Description']=[]
+        if tags is not None:summary['Tags']=list(dict.fromkeys([tag for tag in summary.get('Tags',[]) if not replace_tags or str(tag).startswith('Type-')]+tags))
         experiment['Subject']=summary['Subject']
         result=self.api.request('/Contents/SubmitExperiment',{'Summary':summary,'Experiment':experiment,'Workspace':None})
         created=result['Data']['Summary']
-        if cover is not None:self.set_cover(created['ID'],cover,category=category)
+        if cover is not None:cover_result=self.set_cover(created['ID'],cover,category=category)
         else:
             from experiment_cover import render
-            self._set_cover_bytes(created['ID'],render({'Experiment':experiment}),category)
+            cover_result=self._set_cover_bytes(created['ID'],render({'Experiment':experiment}),category)
         saved=self.api.request('/Contents/GetExperiment',{'ContentID':created['ContentID']})['Data']
         final=self.api.request('/Contents/GetSummary',{'ContentID':created['ID'],'Category':category})['Data']
         if saved.get('StatusSave')!=experiment.get('StatusSave'):raise ValueError('Published model differs from submitted model')
-        return {'published':True,'summary':final,'contentId':created['ContentID'],'modelVerified':True,'coverUploaded':True}
+        return {'published':True,'summary':final,'contentId':created['ContentID'],'modelVerified':True,'coverUploaded':cover_result['updated'],'cover':cover_result}
 
-    def set_avatar(self,path):
-        data=image_file(path,MAX_AVATAR_BYTES)
+    def set_avatar(self,path,*,allow_blank_image=False):
+        data=image_file(path,MAX_AVATAR_BYTES,allow_blank_image)
         user_id=self.api._session.get('account_id')
         user=self.api.request('/Users/GetUser',{'ID':user_id})['Data']['User']
         index=int(user.get('Avatar') or 0)+1
         token=self.api._exchange('/Users/RequestAvatar',{'Request':{'FileSize':-len(data),'Extension':'.jpg'}})['Data']
-        upload_image(data,token)
+        receipt=upload_image(data,token)
+        verification=verify_image(receipt['path'],allow_blank_image)
+        if not verification['verified']:return {'updated':False,'avatar':user.get('Avatar'),'pendingAvatar':index,'imageVerification':verification,'storage':receipt}
         self.api.request('/Users/ConfirmAvatar',{'Avatar':index})
         current=self.api.request('/Users/GetUser',{'ID':user_id})['Data']['User']
-        return {'updated':current.get('Avatar')==index,'avatar':current.get('Avatar'),'previousAvatar':user.get('Avatar')}
+        return {'updated':current.get('Avatar')==index and verification['verified'],'avatar':current.get('Avatar'),'previousAvatar':user.get('Avatar'),'imageVerification':verification,'storage':receipt,'inputImage':{'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}}
 
-    def set_cover(self,summary_id,path,*,category='Experiment'):
-        data=image_file(path,MAX_COVER_BYTES)
-        return self._set_cover_bytes(summary_id,data,category)
+    def set_cover(self,summary_id,path,*,category='Experiment',allow_blank_image=False):
+        data=image_file(path,MAX_COVER_BYTES,allow_blank_image)
+        return self._set_cover_bytes(summary_id,data,category,allow_blank_image)
 
-    def _set_cover_bytes(self,summary_id,data,category='Experiment'):
+    def _set_cover_bytes(self,summary_id,data,category='Experiment',allow_blank_image=False):
         summary=self.api.request('/Contents/GetSummary',{'Category':category,'ContentID':summary_id})['Data']
-        index=int(summary.get('Image') or 0)+1
-        confirm={'Category':category,'SummaryID':summary_id,'Image':index,'Extension':'.png'}
-        self.api.request('/Contents/ConfirmExperiment',confirm)
-        summary['Image']=index
         token=self.api._exchange('/Contents/SubmitExperiment',{'Summary':summary,'Request':{'FileSize':-len(data),'Extension':'.jpg'}})['Data']['Token']
-        upload_image(data,token)
+        target=upload_target(token)
+        expected='/experiments/images/'+summary_id[:4]+'/'+summary_id[4:6]+'/'+summary_id[6:8]+'/'+summary_id[8:24]+'/'
+        if not target.startswith(expected) or not target[len(expected):].removesuffix('.jpg').isdigit() or not target.endswith('.jpg'):raise ValueError('Cover token target does not match this work')
+        index=int(target.rsplit('/',1)[1].split('.')[0])
+        receipt=upload_image(data,token)
+        verification=verify_image(receipt['path'],allow_blank_image)
+        if not verification['verified']:return {'updated':False,'image':summary.get('Image'),'pendingImage':index,'summaryId':summary_id,'imageVerification':verification,'storage':receipt}
+        confirm={'Category':category,'SummaryID':summary_id,'Image':index,'Extension':'.jpg'}
         self.api.request('/Contents/ConfirmExperiment',confirm)
         current=self.api.request('/Contents/GetSummary',{'Category':category,'ContentID':summary_id})['Data']
-        return {'updated':current.get('Image')==index,'image':current.get('Image'),'summaryId':summary_id}
+        return {'updated':current.get('Image')==index and verification['verified'],'image':current.get('Image'),'summaryId':summary_id,'imageVerification':verification,'storage':receipt,'inputImage':{'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}}
 
     def remove(self,summary_id,*,category='Experiment',hide=False,reason=''):
         before=self.api.request('/Contents/GetSummary',{'Category':category,'ContentID':summary_id})['Data']

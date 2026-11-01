@@ -58,7 +58,7 @@ class Piece:
         slots=self.slots();side=max(2,ceil(sqrt(len(slots))));rows=max(2,ceil(len(slots)/side))
         exp=circuit.crt_circuit_experiment(title)
         def element(name,x,y,z=0,**kw):
-            obj=getattr(circuit,name)(Position(x*.16,y*.16,z*.16),**kw);exp.crt_elements(obj);return obj
+            obj=getattr(circuit,name)(Position(x*.16,z*.16,y*.16),**kw);exp.crt_elements(obj);return obj
         wire=exp.crt_a_wire
         def lamp(count,x,y,horizontal):
             nodes=[element('DFlipflop',x+(i if horizontal else 0),y+(0 if horizontal else 2*i)) for i in range(count)]

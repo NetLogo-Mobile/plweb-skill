@@ -34,12 +34,15 @@ def main():
     publish.add_argument('--tag', action='append')
     publish.add_argument('--category', choices=['Experiment','Discussion','Model'], default='Experiment')
     publish.add_argument('--cover', type=Path)
+    publish.add_argument('--replace-tags',action='store_true')
     avatar = commands.add_parser('avatar')
     avatar.add_argument('--image', type=Path, required=True)
+    avatar.add_argument('--allow-blank-image',action='store_true')
     cover = commands.add_parser('cover')
     cover.add_argument('--summary-id', required=True)
     cover.add_argument('--category', default='Experiment')
     cover.add_argument('--image', type=Path, required=True)
+    cover.add_argument('--allow-blank-image',action='store_true')
     remove = commands.add_parser('remove')
     remove.add_argument('--summary-id', required=True)
     remove.add_argument('--category', default='Experiment')
@@ -82,11 +85,11 @@ def main():
             elif args.command == 'inspect':
                 result = client.inspect_experiments(args.content_ids, args.output_dir)
             elif args.command == 'publish':
-                result = actions.publish(args.archive,title=args.title,description=args.description,tags=args.tag,category=args.category,cover=args.cover)
+                result = actions.publish(args.archive,title=args.title,description=args.description,tags=args.tag,category=args.category,cover=args.cover,replace_tags=args.replace_tags)
             elif args.command == 'avatar':
-                result = actions.set_avatar(args.image)
+                result = actions.set_avatar(args.image,allow_blank_image=args.allow_blank_image)
             elif args.command == 'cover':
-                result = actions.set_cover(args.summary_id,args.image,category=args.category)
+                result = actions.set_cover(args.summary_id,args.image,category=args.category,allow_blank_image=args.allow_blank_image)
             elif args.command == 'remove':
                 result = actions.restore(args.summary_id,category=args.category,reason=args.reason) if args.mode=='restore' else actions.remove(args.summary_id,category=args.category,hide=args.mode=='hide',reason=args.reason)
             elif args.command == 'actions':
