@@ -55,9 +55,22 @@ def main():
         command.add_argument('--summary-id',action='append',required=True,help='Repeat for up to 20 works')
         command.add_argument('--status',choices=['add','remove'],required=True)
         command.add_argument('--category',choices=['Experiment','Discussion','Model'],default='Experiment')
+    memory=commands.add_parser('memory')
+    memory_commands=memory.add_subparsers(dest='memory_action',required=True)
+    note=memory_commands.add_parser('save');note.add_argument('--key',required=True);note.add_argument('--title',required=True);note.add_argument('--content',required=True);note.add_argument('--tag',action='append');note.add_argument('--target-id');note.add_argument('--target-type',choices=['User','Experiment','Discussion'])
+    search=memory_commands.add_parser('search');search.add_argument('--query',default='');search.add_argument('--limit',type=int,default=5);search.add_argument('--cursor');search.add_argument('--target-id');search.add_argument('--all-accounts',action='store_true')
+    for operation in ('read','delete'):
+        item=memory_commands.add_parser(operation);item.add_argument('note_ids',nargs='+')
     args = parser.parse_args()
     try:
-        if args.command in ('accounts', 'forget'):
+        if args.command=='memory':
+            from memory_store import MemoryStore
+            store=MemoryStore()
+            if args.memory_action=='save':result=store.put(args.key,args.title,args.content,account_id=args.account or 'shared',domain=args.domain,tags=args.tag,target_id=args.target_id,target_type=args.target_type)
+            elif args.memory_action=='search':result=store.search(args.query,account_id=args.account or 'shared',domain=args.domain,all_accounts=args.all_accounts,target_id=args.target_id,limit=args.limit,cursor=args.cursor)
+            elif args.memory_action=='read':result=store.read(args.note_ids)
+            else:result=store.delete(args.note_ids)
+        elif args.command in ('accounts', 'forget'):
             store = SessionStore()
             if args.command == 'accounts':
                 result = store.accounts()
@@ -112,6 +125,9 @@ def main():
         print(json.dumps(result, ensure_ascii=False))
     except CommunityError as error:
         print(json.dumps(error.as_dict(), ensure_ascii=False))
+        return 1
+    except ValueError as error:
+        print(json.dumps({'ok':False,'errorType':type(error).__name__,'message':str(error)},ensure_ascii=False))
         return 1
     except Exception as error:
         print(json.dumps({'ok': False, 'errorType': type(error).__name__}))

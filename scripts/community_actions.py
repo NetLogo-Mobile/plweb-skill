@@ -16,6 +16,17 @@ MAX_AVATAR_BYTES = 1024 * 1024
 MAX_COVER_BYTES = 8 * 1024 * 1024
 STATIC_BASE = 'https://physics-lab.oss-cn-hongkong.aliyuncs.com'
 
+def validate_archive_model(archive):
+    if not isinstance(archive,dict) or not isinstance(archive.get('Experiment'),dict):raise ValueError('Expected a .plsav object containing Experiment')
+    experiment=archive['Experiment']
+    if experiment.get('Type') not in (0,3,4) or isinstance(experiment.get('Type'),bool):raise ValueError('Experiment.Type must be 0, 3 or 4')
+    try:state=json.loads(experiment['StatusSave'])
+    except (KeyError,ValueError,TypeError):raise ValueError('Experiment.StatusSave must be a model JSON string') from None
+    elements=state.get('Elements') if isinstance(state,dict) else None
+    if not isinstance(elements,(list,dict)):raise ValueError('StatusSave.Elements must be an array or object dictionary')
+    values=elements.get('$values',list(elements.values())) if isinstance(elements,dict) else elements
+    if not isinstance(values,list) or any(not isinstance(v,dict) for v in values):raise ValueError('Elements must contain model objects')
+
 
 def upload_target(token):
     if token.get('RequestHost'):
@@ -107,8 +118,7 @@ class CommunityActions:
             file = Path(archive)
             if file.stat().st_size > 32 * 1024 * 1024:raise ValueError('Archive exceeds 32MB')
             archive = json.loads(file.read_text(encoding='utf-8-sig'))
-        if not isinstance(archive, dict) or not isinstance(archive.get('Experiment'), dict):
-            raise ValueError('Expected a .plsav object containing Experiment')
+        validate_archive_model(archive)
         if category not in ('Experiment','Discussion','Model'):raise ValueError('Invalid category')
         summary, experiment = dict(archive.get('Summary') or {}), dict(archive['Experiment'])
         for key in ('ID','ContentID'):summary[key]=None
@@ -119,17 +129,23 @@ class CommunityActions:
                         'User':{'ID':self.api._session.get('account_id')}, 'Coauthors':[]})
         if description is not None:summary['Description']=description.splitlines() if isinstance(description,str) else description
         if summary.get('Description') is None:summary['Description']=[]
-        if tags is not None:summary['Tags']=list(dict.fromkeys([tag for tag in summary.get('Tags',[]) if not replace_tags or str(tag).startswith('Type-')]+tags))
+        if tags is not None:summary['Tags']=list(dict.fromkeys([tag for tag in (summary.get('Tags') or []) if not replace_tags or str(tag).startswith('Type-')]+tags))
         experiment['Subject']=summary['Subject']
         result=self.api.request('/Contents/SubmitExperiment',{'Summary':summary,'Experiment':experiment,'Workspace':None})
         created=result['Data']['Summary']
-        if cover is not None:cover_result=self.set_cover(created['ID'],cover,category=category)
-        else:
-            from experiment_cover import render
-            cover_result=self._set_cover_bytes(created['ID'],render({'Experiment':experiment}),category)
-        saved=self.api.request('/Contents/GetExperiment',{'ContentID':created['ContentID']})['Data']
-        final=self.api.request('/Contents/GetSummary',{'ContentID':created['ID'],'Category':category})['Data']
-        if saved.get('StatusSave')!=experiment.get('StatusSave'):raise ValueError('Published model differs from submitted model')
+        context={'operation':'publish','summaryId':created['ID'],'contentId':created.get('ContentID'),'category':category,'submitted':True,'next':'Read the existing work; do not repeat publication'}
+        try:
+            if cover is not None:cover_result=self.set_cover(created['ID'],cover,category=category)
+            else:
+                from experiment_cover import render
+                cover_result=self._set_cover_bytes(created['ID'],render({'Experiment':experiment}),category)
+            saved=self.api.request('/Contents/GetExperiment',{'ContentID':created['ContentID']})['Data']
+            final=self.api.request('/Contents/GetSummary',{'ContentID':created['ID'],'Category':category})['Data']
+            if saved.get('StatusSave')!=experiment.get('StatusSave'):raise ValueError('Published model differs from submitted model')
+        except CommunityError as error:
+            error.context={**(error.context or {}),'publication':context};raise
+        except Exception:
+            raise CommunityError(None,'publish_post_submit_failed',context={'publication':context}) from None
         return {'published':True,'summary':final,'contentId':created['ContentID'],'modelVerified':True,'coverUploaded':cover_result['updated'],'cover':cover_result}
 
     def set_avatar(self,path,*,allow_blank_image=False):

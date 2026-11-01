@@ -171,12 +171,8 @@ POST /Messages/RemoveComment
 - 管理员可以删除任何评论
 - 无权限删除会返回 `Permission.Denied` 错误
 
-## 4. 已移除的旧路径
-
-`Contents/GetDiscussionComments` 不存在于当前服务端控制器中。讨论作品评论使用 `Messages/GetComments`，请求的 `TargetType` 设为 `Discussion`，其响应与本页的评论包相同。
-
 ## 自动分页、回复与警告
 
 指定条数或多个目标使用 [fetch_comments](operations.md)，每批所有目标合计最多1000条。返回数组可能有$values包装。续页不能仅依Count判断完成。
 
-原有发表评论/删除能力保留；PostComment还支持ReplyID（被回复的用户ID，非评论ID）、Language、Special及社区用户引用。管理警告仅在权限和目标类型正确时生效，字段与副作用见 [评论与警告](practical-api.md#6-评论回复--与警告)。
+原有发表评论/删除能力保留；PostComment还支持ReplyID（被回复的用户ID，非评论ID）、Language、Special及社区用户引用。管理警告仅在权限和目标类型正确时生效，字段与副作用见 [评论与警告](practical-api.md#6-评论回复-与警告)。

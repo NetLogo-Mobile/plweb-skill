@@ -27,7 +27,7 @@ POST /Messages/GetMessages
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `CategoryID` | int | 消息分类 ID，`0` 表示全部 |
-| `Skip` | int | 服务端分页参数；当前只保证首批，完整续页协议须单独核验，不擅自假定条数偏移 |
+| `Skip` | int | 跳过条数；续页累加实际返回条数，fetch_messages可自动循环 |
 | `Take` | int | 获取条数（默认 16） |
 | `NoTemplates` | bool | 是否省略Templates对象；不是排除使用模板的消息条目 |
 
@@ -62,14 +62,13 @@ POST /Messages/GetMessages
 | `TemplateID` | 服务端消息模板 ID |
 | `TargetID` | 消息目标用户 ID |
 | `Users` / `UserNames` | 相关用户 ID 与昵称数组 |
-| `CategoryID` | 消息类别枚举，0 至 5 |
 | `Timestamp` / `TimestampInitial` | 毫秒级 Unix 时间戳 |
 | `Unread` / `Handled` | long状态标记，不是数量；Unread=0未读，非零为读取时间戳；Handled单独解释 |
 | `Fields` / `Numbers` | 模板文本替换用字符串/数值字典，不是已渲染正文 |
 
 ## 2. 获取单条站内信（Messages/GetMessage）
 
-获取指定 ID 的单条站内信详情。
+按MessageID标记读取并处理关联状态；正文来自GetMessages的条目及模板。
 
 ### 请求
 
@@ -114,7 +113,7 @@ POST /Messages/SendMessages
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `TargetID` | string[] | 目标用户 ID，1 至 50 个 |
+| `TargetID` | string[] | 目标用户ID数组，本技能每批合计最多20个 |
 | `Category` | string | 关联作品类别；即使不传关联作品仍须提供字段 |
 | `SummaryID` | string[] | 可选关联作品 ID 列表；长度需与目标用户数量一致或为空 |
 | `TemplateID` | string | 服务端消息模板 ID |
@@ -135,6 +134,6 @@ POST /Messages/SendMessages
 
 ## 批量与副作用
 
-仓库辅助层把GetMessages与GetMessage视作有状态操作，调用通用批量方法时须显式write=True并有相应任务授权；这不改变接口仍为“消息读取”的业务名称。未验证的Skip续页不作完整遍历。
+仓库辅助层把GetMessages与GetMessage视作有状态操作，调用通用批量方法时须显式write=True并有相应任务授权；这不改变接口仍为“消息读取”的业务名称。消息列表使用Skip条数分页；完整性以实际返回数量和停止原因为准。
 
-SendMessages保留服务端1至50人的原版字段说明，但本技能每批用户总计最多20个；不自行拆批绕过。模板正文的本地渲染规则见 [通知](practical-api.md#7-通知)。
+SendMessages每批用户总计最多20个。模板正文的本地渲染规则见 [通知](practical-api.md#7-通知)。

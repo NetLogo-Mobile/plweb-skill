@@ -1,6 +1,8 @@
 # 自动分页、批量接口与账号选择
 
-这些是本技能的辅助接口，不是新增的物理实验室服务端路径。本仓库在支持Python的本地或云端执行环境使用 `scripts/community_reads.py` 中的 `CommunityReads`。
+通用版使用Python方法或CLI；下文JSON为已连接ChatGPT插件时的工具入参。两种入口共享接口规则，不把插件参数当作Python方法参数。
+
+这些是辅助接口，不是新增的物理实验室服务端路径。本仓库在支持Python的本地或云端执行环境使用 `scripts/community_reads.py` 中的 `CommunityReads`。
 
 ## 硬限制
 
@@ -48,7 +50,7 @@
 
 ## 大结果
 
-本仓库将完整大结果保存在当前用户的任务目录，仅显示摘要与文件位置；分页使用experiment_view.py。若另接托管服务，可提供私人结果ID、最长24小时链接与read_batch_result(result_id,index?,offset?,limit?)切片，但这些远程能力不随本仓库提供。offset是归档结果切片，不是社区Skip。
+通用版将完整大结果保存在当前用户任务目录，仅显示摘要和文件位置，实验分页用experiment_view.py。ChatGPT插件使用私人结果ID、24小时链接及read_batch_result(result_id,index?,offset?,limit?)切片。两种文件引用不互换；offset是归档切片，不是社区Skip。
 
 ## 通用版接入
 
@@ -108,6 +110,6 @@ accepted = actions.handle_invitation(message_id)
 removed = actions.remove_coauthor(summary_id, target_id)
 ```
 
-publish默认按模型生成并上传封面，亦可指定cover图片。run_batch接收1到20个`{action,args}`任务，支持publish/avatar/cover/remove/restore/invite/remove_coauthor/accept_invitation，最多两个工作线程。CLI使用actions --input任务数组.json；云端用run_actions，整批固定账号。
+publish默认按模型生成并上传封面，亦可指定cover图片。run_batch接收1到20个`{action,args}`任务，支持publish/avatar/cover/remove/restore/invite/remove_coauthor/accept_invitation/set_featured/set_knowledge_base，最多两个工作线程。CLI使用actions --input任务数组.json；云端用run_actions，整批固定账号。
 
 fetch_messages与fetch_supporters按Skip条数续页，最多20条并返回nextOffset。消息读取会更新未读提示，按收件箱任务调用。

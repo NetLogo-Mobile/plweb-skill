@@ -7,7 +7,7 @@
 | 作品 Category | `Experiment`、`Discussion` | 实验区、讨论区（黑洞） |
 | 评论 TargetType | `User`、`Experiment`、`Discussion` | 用户留言板、实验评论、讨论评论 |
 | MoveCategory.Target | `Experiment`、`Discussion` | 目标分区 |
-| GetLibrary.Identifier | `Discussions` | 讨论页；其他 Identifier 使用服务端页面配置，不把任意名称当作有效页 |
+| GetLibrary.Identifier | `Homepage`、`Discussions`、`Workspace` | 首页、讨论页、工作区导航；以返回的非空Library为准 |
 
 
 ## 2. 语言
@@ -60,7 +60,7 @@
 
 发请求使用 `Identifier`，`Subject` 是多语言显示名；返回时保留 `Tips`、`ModeratorTips`、`Available`、`Flags`、`Conflicts`。Flags/Conflicts 可能是 `$values` 包装数组，辅助接口会规范为数组。不要把显示名或旧别名当作可新增 Identifier。
 
-`Available` 是无效的账号权限信号，忽略其true/false；不能因它为false而拒绝“交流”等普通标签。辅助接口直接返回 `availableIsPermission=false`、普通标签 `normalTagIdentifiers` 与限制标签 `managedTagIdentifiers`，方便模型选择。依据分类、Conflicts和Tips匹配组合，保留正确的系统类型标签。普通 SubmitExperiment 即使返回200，也不会新增“精选”或“知识库”，编辑后须读回Tags核对。
+`Available` 是无效的账号权限信号，忽略其true/false；不能因它为false而拒绝“交流”等普通标签。辅助接口直接返回 `availableIsPermission=false`、普通标签 `normalTagIdentifiers` 与限制标签 `managedTagIdentifiers`，方便模型选择。分类筛选保留Circuit/Celestial等无显式分区标记的类型标签，仍需按实际实验类型、Conflicts和Tips匹配组合，保留正确的系统类型标签。普通 SubmitExperiment 即使返回200，也不会新增“精选”或“知识库”，编辑后须读回Tags核对。
 
 账号会话、公开配置与不同筛选分区可能有差别。一次批次读取一次相关配置即可，不为每个对象重新登录；不得用静态表替代失败的实时读取。详见 [自动分页与批量接口](operations.md)。
 

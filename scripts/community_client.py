@@ -23,17 +23,19 @@ def redact(value):
 
 
 class CommunityError(RuntimeError):
-    def __init__(self, status, kind='upstream_error', *, code=None, data=None, http_status=None):
+    def __init__(self, status, kind='upstream_error', *, code=None, data=None, http_status=None, context=None):
         self.status = status
         self.kind = kind
         self.code = code
         self.data = redact(data)
         self.http_status = http_status
+        self.context = redact(context)
         super().__init__(f'{code or kind} (status={status})')
 
     def as_dict(self):
         return {'ok': False, 'error': self.kind, 'httpStatus': self.http_status,
-                'Status': self.status, 'Message': self.code, 'Data': self.data}
+                'Status': self.status, 'Message': self.code, 'Data': self.data,
+                **({'context':self.context} if self.context else {})}
 
 
 class _NoRedirect(HTTPRedirectHandler):

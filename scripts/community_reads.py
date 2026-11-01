@@ -115,7 +115,7 @@ class CommunityReads:
             except Exception as error:
                 if getattr(error,"status",None) in (429,503):
                     halt.set()
-                return {"index":index,"ok":False,**(error.as_dict() if hasattr(error,'as_dict') else {"errorType":type(error).__name__})}
+                return {"index":index,"ok":False,**(error.as_dict() if hasattr(error,'as_dict') else {"errorType":type(error).__name__,**({'message':str(error)} if isinstance(error,ValueError) else {})})}
         with ThreadPoolExecutor(max_workers=2) as pool:
             return list(pool.map(run, enumerate(jobs)))
 
@@ -185,7 +185,7 @@ class CommunityReads:
         if not tags or any(not isinstance(t.get("Identifier"),str) or not t["Identifier"] for t in tags):
             raise ValueError("Invalid ContentTags")
         tags = [{**tag,"Flags":_array(tag.get("Flags")),"Conflicts":_array(tag.get("Conflicts"))} for tag in tags]
-        selected=[t for t in tags if category is None or category in t['Flags']]
+        selected=[t for t in tags if category is None or category in t['Flags'] or not set(t['Flags'])&{'Experiment','Discussion','Model'}]
         def managed(t):return t['Identifier'].startswith('Type-') or bool(set(t['Flags'])&{'Immutable','EditOnly','Volunteer','Junior','Editor','Administrator','Oldtimer','Emeritus'})
         return {"source":"Authenticate.Data.ContentTags","total":len(tags),"tags":selected,"availableIsPermission":False,"normalTagIdentifiers":[t['Identifier'] for t in selected if not managed(t)],"managedTagIdentifiers":[t['Identifier'] for t in selected if managed(t)],"availabilityNote":"Available是无效的账号权限信号，忽略其true/false，不能据此拒绝交流等普通标签。normalTagIdentifiers用于普通标签选择，组合按Conflicts/Tips匹配；managedTagIdentifiers含系统、管理或编辑限制标签。普通SubmitExperiment不会新增精选或知识库，即使返回200也要读回Tags确认。"}
 

@@ -202,7 +202,7 @@ actions.set_featured_batch([id1, id2], False, category="Experiment")
 actions.set_knowledge_base_batch([id1, id2], False, category="Discussion")
 ```
 
-云端工具 `set_featured` 与 `set_knowledge_base` 的参数相同：`summary_ids:string[]`、`status:boolean` 必填，`category` 默认Experiment，`account_id` 可选。同一批最多20个不同摘要ID，固定账号和分区，最多两个工作线程，返回逐项结果、真实服务器错误及读回确认的updated。
+ChatGPT插件工具 `set_featured` 与 `set_knowledge_base` 的参数相同：`summary_ids:string[]`、`status:boolean` 必填，`category` 默认Experiment，`account_id` 可选。同一批最多20个不同摘要ID，固定账号和分区，最多两个工作线程，返回逐项结果、真实服务器错误及读回确认的updated。
 
 命令行支持重复 `--summary-id`：
 

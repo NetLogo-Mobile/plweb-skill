@@ -103,7 +103,7 @@ POST /Users/GetRelations
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `UserID` | string | 目标用户 ID |
-| `DisplayType` | int | `0` 粉丝（Followed），`1` 关注（Following）；更多筛选值见源码枚举 |
+| `DisplayType` | int | `0` 粉丝（Followed），`1` 关注（Following）；更多筛选值见 [响应枚举](responses.md#5-用户接口返回) |
 | `Skip` | int | 分页参数；首批Skip=0、Take=20 |
 | `Take` | int | 获取条数（默认 20） |
 | `Query` | string | 关系范围内昵称筛选；实测完整昵称可命中，截短昵称未命中，不当作全站模糊搜索 |
@@ -178,7 +178,8 @@ POST /Users/ReceiveBonus
 ```json
 {
   "ActivityID": "activity_id_string",
-  "Index": 0
+  "Index": 0,
+  "Statistic": {}
 }
 ```
 
@@ -186,6 +187,7 @@ POST /Users/ReceiveBonus
 |------|------|------|
 | `ActivityID` | string | 活动 ID |
 | `Index` | int | 奖励索引 |
+| `Statistic` | object | 服务端活动要求的原统计对象，不自行伪造 |
 
 ## 7. 封禁用户（Users/Ban）— 编辑/管理员
 
@@ -231,6 +233,5 @@ POST /Users/Unban
 ```
 
 ## 9. 头像与封面图片
-+
-+静态资源基址为`https://physics-lab.oss-cn-hongkong.aliyuncs.com`，路径见 [图片路径](practical-api.md#10-活动与图片)。序号使用最新User.Avatar或Summary.Image。上传头像和封面使用 [图片上传方法](uploads.md)。
-+
+
+静态资源基址为`https://physics-lab.oss-cn-hongkong.aliyuncs.com`，路径见 [图片路径](practical-api.md#10-活动与图片)。序号使用最新User.Avatar或Summary.Image。上传头像和封面使用 [图片上传方法](uploads.md)。

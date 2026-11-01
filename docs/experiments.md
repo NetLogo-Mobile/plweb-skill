@@ -2,7 +2,7 @@
 
 使用本包 `vendor/physicslab` 内置的本地建模库（Python 3.10+），由 [Arendelle](https://github.com/SekaiArendelle) 的 [physicslab](https://github.com/SekaiArendelle/physicslab) 适配，保留 MIT 许可。网络、上传和登录缓存读取部分已移除。先通过 `scripts/offline_physicslab.py` 的 `load_local_modules()` 加载 circuit、celestial、electromagnetism 和 coordinate_system；可运行随附示例生成存档。
 
-**使用随包内置库，不从作者GitHub或PyPI另取库。AI交付由此库生成的结果时，提及作者 Arendelle 并附 https://github.com/SekaiArendelle 。** 云端有代码执行能力的环境用 `get_modeling_library` 获取插件内置ZIP并解压，保留 scripts/vendor 目录关系。音乐生成见 [音乐电路](music.md)，Chat可直接调用 `generate_music_experiment`。
+**使用随包内置库，不从作者GitHub或PyPI另取库。AI交付由此库生成的结果时，提及作者 Arendelle 并附 https://github.com/SekaiArendelle 。** ChatGPT插件在有代码执行能力的环境用 `get_modeling_library` 获取下载地址：Work优先下载返回的公开固定版本快照，解压后进入archiveRoot，保留scripts/vendor目录关系；不需要用户每次上传ZIP。该快照来自插件自有仓库，包含已适配的内置库。账号、发布和笔记仍用插件云端工具，不切换到快照中的通用版登录或本地记忆流程。音乐生成见 [音乐电路](music.md)，Chat可直接调用 `generate_music_experiment`。
 
 ```text
 python scripts/experiment_example.py --type circuit --output <新文件.plsav> --title <标题>
@@ -14,7 +14,7 @@ python scripts/experiment_example.py --type electromagnetism --output <新文件
 
 ## 发布
 
-用户要求发布时直接调用 `CommunityActions.publish` 或云端工具 `publish_experiment`。用户只要求制作时交付存档。
+用户要求发布时直接调用 `CommunityActions.publish` 或ChatGPT插件工具 `publish_experiment`。用户只要求制作时交付存档。
 
 ```text
 python scripts/community_cli.py --account <用户ID> publish --archive <文件.plsav> --title <标题> --description <介绍> --tag <实时标签Identifier>
@@ -42,3 +42,5 @@ python scripts/community_cli.py --account <用户ID> publish --archive <文件.p
 默认封面为800×600（4:3）的简化布局预览，按x-z投影并保持比例，显示导线、简化元件符号和编号；编号对应Elements顺序。它不复现完整三维外观和旋转。需要文字标题、详细外观或特定视角时提供自定义封面，按4:3设计并留出边距。
 
 发布时传入tags默认与存档原标签合并，保留“禁止改编”等既有标签；只有明确指定 `replace_tags=true`（命令行 `--replace-tags`）才替换普通标签，Type-*仍保留。发布前核对实时标签及冲突，不能静默去掉原存档限制标签。
+
+作品提交后封面或核验步骤失败时，错误context.publication（插件为publication）会保留已创建的摘要ID、保存ID和Category。先检查该作品并继续未完成步骤，不重复新建。

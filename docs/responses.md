@@ -361,4 +361,4 @@ if payload.get("Status") != 200:
 experiments = get_items(payload.get("Data"))
 ```
 
-`GetDerivatives`、`GetUser`、`GetMessages`、`GetComments` 返回对象包，不应直接传给 `get_items`；先取 `Data["Experiments"]`、`Data["User"]`、`Data["Messages"]` 或 `Data["Comments"]`，再按实际 JSON 形状解包数组。
+`GetUser`返回的Data.User是单个用户对象，不做数组解包。GetDerivatives的Data.Experiments是分组字典，逐组解包其中数组；GetMessages和GetComments分别取Data.Messages、Data.Comments再解包。

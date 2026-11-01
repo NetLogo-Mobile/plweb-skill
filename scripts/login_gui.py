@@ -36,7 +36,7 @@ def main():
             api.save(store)
             completed.put((True, '登录成功，会话已安全保存。'))
         except CommunityError as error:
-            completed.put((False, f'登录失败：{error.kind} ({error.status})'))
+            completed.put((False, f'登录失败：{error.code or error.kind} ({error.status})'))
         except Exception:
             completed.put((False, '无法登录或安全保存，请检查网络和系统凭据库。'))
         finally:

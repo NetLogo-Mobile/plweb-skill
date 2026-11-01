@@ -24,6 +24,6 @@
 
 ## 从通知和移动记录继续查找
 
-通知包含评论、回复、互动、管理和作品移动等线索。需要了解近期事件或已知作品的去向时，可读取GetMessages（或fetch_messages），按TemplateID、Fields和相关ID解释，再以GetMessage读取必要详情。读取通知可能改变未读状态，按用户任务需要读取；不能把通知标题当作完整事实。
+通知包含评论、回复、互动、管理和作品移动等线索。需要了解近期事件或已知作品的去向时，可读取GetMessages（或fetch_messages），按TemplateID、Fields和相关ID解释，按TemplateID结合Templates渲染必要正文；GetMessage仅用于用户要求的标记读取或处理关联状态。读取通知可能改变未读状态，按用户任务需要读取；不能把通知标题当作完整事实。
 
 作品在实验区、黑洞区等分区间移动后，原Category参数可能查不到同一个摘要ID；这不等于删除。先检查通知中的移动记录及目标Category；没有明确记录时，以相同摘要ID分别在Experiment、Discussion这两个实际分区中作有界查询，核对作者、标题和返回Category，随后统一更新本次任务中的分类参数。链接前缀及旧通知里的Category可能是移动前的值。保存ContentID和摘要ID仍要区分；原分区返回不存在或无权限时，不反复用旧Category重试，也不能未经核实执行删除/重发。
