@@ -40,6 +40,7 @@ description: 通过物理实验室 AR / Physics Lab 社区 API 查询作品、�
 | 读实验模型 | `inspect_experiments`、`experiment_view.py` | [大实验处理](docs/large-experiments.md) |
 | 做实验、生成音乐、发布 | `experiment_example.py`、`music_experiment.py` / `CommunityActions.publish` | [建模与发布](docs/experiments.md)、[音乐](docs/music.md) |
 | 头像与封面 | `CommunityActions.set_avatar/set_cover` | [图片格式、传输、索引与验证](docs/uploads.md) |
+| 富文本、字体样式、用户及作品引用 | 在文本字段直接使用标签 | [颜色、字号、组合排版与摘要ID引用](docs/rich-text.md) |
 | 评论、回复、警告、通知 | `CommunityReads`、通用请求 | [评论](docs/comments.md)、[通知](docs/messages.md) |
 | 合作者、精选、知识库、隐藏/删除、封禁 | `CommunityActions` | [操作权限与结果](docs/permissions.md)、[字段速查](docs/interface-notes.md)、[完整业务参数](docs/practical-api.md) |
 | 解析返回值或选择枚举/标签 | 按响应结构取字段 | [响应结构](docs/responses.md)、[可填值与实时标签](docs/practical-values.md)、[枚举](docs/enums.md) |

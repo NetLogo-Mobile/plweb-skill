@@ -144,6 +144,8 @@ GetSupporters使用Skip条数和Take分页，指定数量可用fetch_supporters�
 
 文本、标签编辑共用提交接口，没有必要寻找或猜造独立的改标签端点。
 
+标题、介绍、评论和签名可直接写富文本标签；颜色、字号、组合排版及用户/作品引用见[富文本](rich-text.md)。作品引用标签使用Summary.ID摘要ID，不使用保存ContentID。
+
 ```javascript
 const payload = {
   Summary: {
