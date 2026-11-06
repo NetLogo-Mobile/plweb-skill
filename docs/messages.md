@@ -20,7 +20,7 @@ POST /Messages/GetMessages
   "CategoryID": 0,
   "Skip": 0,
   "Take": 16,
-  "NoTemplates": true
+  "NoTemplates": false
 }
 ```
 
@@ -42,7 +42,7 @@ POST /Messages/GetMessages
       { "ID": "<message-id>", "CategoryID": 3, "TemplateID": "<template-id>",
         "TargetID": "<target-id>", "Users": ["<sender-id>"], "UserNames": ["发送者"],
         "UserAvatar": 0, "Timestamp": 1720000000000, "TimestampInitial": 1720000000000,
-        "Unread": 1, "Handled": 0, "Fields": {}, "Numbers": {} }
+        "Unread": 1720000000123, "Handled": 0, "Fields": {}, "Numbers": {} }
     ],
     "Templates": []
   }
@@ -52,6 +52,8 @@ POST /Messages/GetMessages
 响应的 `Data` 是 `MessagesPackage`；消息数组在 `Data.Messages`，模板在 `Data.Templates`。当 `Skip != 0` 或 `NoTemplates=true` 时，`Templates` 可能为 `null`。
 
 请求第一页（`Skip=0`）会把当前用户统计中的未读消息/信件计数清零，这是有状态读取操作。
+
+GetMessages负责列出消息及正文模板。确认某条消息已读使用下节的GetMessage，以消息条目的Unread判断该条状态。
 
 ### Message 字段说明
 
@@ -66,9 +68,9 @@ POST /Messages/GetMessages
 | `Unread` / `Handled` | long状态标记，不是数量；Unread=0未读，非零为读取时间戳；Handled单独解释 |
 | `Fields` / `Numbers` | 模板文本替换用字符串/数值字典，不是已渲染正文 |
 
-## 2. 获取单条站内信（Messages/GetMessage）
+## 2. 确认单条消息已读（Messages/GetMessage）
 
-按MessageID标记读取并处理关联状态；正文来自GetMessages的条目及模板。
+将GetMessages返回的消息条目ID传给MessageID，服务器执行该条消息的已读处理。正文通过GetMessages条目与Templates解读。
 
 ### 请求
 
@@ -85,7 +87,23 @@ POST /Messages/GetMessage
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `MessageID` | string | 消息 ID |
+| `MessageID` | string | 必填，取GetMessages中目标消息条目的ID |
+
+### 调用与确认
+
+ChatGPT插件使用write_community调用，因为此接口会更新已读状态。
+
+```json
+{"path":"/Messages/GetMessage","body":{"MessageID":"<消息条目的ID>"}}
+```
+
+通用版可直接调用已登录的CommunityClient。
+
+```python
+result = client.request("/Messages/GetMessage", {"MessageID": message["ID"]})
+```
+
+通过CommunityReads.call_batch批量确认时，传入消息ID请求列表并设置write=True。检查业务Status=200，然后按同一消息ID重新读取列表中的条目，确认Unread为非零读取时间戳。Unread=0表示未读。Statistic.UnreadMessages和UnreadLetters表示聚合提示，Handled表示关联事项的处理状态。
 
 ### 响应
 

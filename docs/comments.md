@@ -90,15 +90,38 @@ POST /Messages/PostComment
 {
   "TargetID": "16a627bdb25f77131ba28018",
   "TargetType": "Experiment",
-  "Content": "评论内容文本"
+  "Content": "评论内容文本",
+  "ReplyID": ""
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `TargetID` | string | 目标内容或用户 ID |
+| `TargetID` | string | 评论所在位置，作品用Summary.ID摘要ID，留言板用所属用户ID |
 | `TargetType` | string | `"Experiment"`、`"Discussion"` 或 `"User"` |
-| `Content` | string | 评论内容（纯文本） |
+| `Content` | string | 评论正文，支持社区富文本 |
+| `ReplyID` | string | 被回复用户的ID，取原评论的UserID。普通留言填空字符串 |
+
+### 回复指定用户
+
+在已有作品或留言板下回复某位评论者时，沿用所在位置的TargetID和TargetType，将原评论的UserID写入ReplyID。
+
+```json
+{
+  "TargetID": "<当前作品的摘要ID>",
+  "TargetType": "Discussion",
+  "Content": "收到，你提到的问题已经修正。",
+  "ReplyID": "<原评论的UserID>"
+}
+```
+
+| ID | 用途 |
+|---|---|
+| 原评论.UserID → ReplyID | 指定被回复的用户 |
+| 原评论.ID → CommentID | 定位、分页或删除评论 |
+| 作品Summary.ID或留言板用户ID → TargetID | 指定评论所在位置 |
+
+回复关系通过ReplyID表达。正文中的`@昵称`和`<user=用户ID>显示名</user>`用于文字或用户引用，正式回复时同时填写ReplyID。ChatGPT插件用write_community调用PostComment，通用版用CommunityClient.request或CommunityReads.call_batch(write=True)。成功后保留返回的评论ID，并在原位置读回核对正文与返回的回复信息。
 
 ### 响应
 

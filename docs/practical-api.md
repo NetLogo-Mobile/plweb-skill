@@ -278,13 +278,21 @@ python scripts/community_cli.py --account <用户ID> knowledge --summary-id <摘
 ```
 
 - `TargetID`：留言板用户 ID，或作品摘要 ID。
-- `ReplyID`：被回复的用户 ID，不是评论 ID；普通留言为空字符串。
+- `ReplyID`填被回复用户的ID，取原评论的UserID。普通留言填空字符串。原评论.ID用于CommentID，作品Summary.ID或留言板用户ID用于TargetID。
 - `Content`：文本和社区富文本。用户引用形式为 `<user=用户ID>显示名</user>`。回复或 @ 可以产生通知，包括本人引用。
 - `Special=null`：普通评论。`Special=Reminder` 且 `TargetType=User`：管理警告，会出现 Reminder、Locked 标记；需要正常管理权限。
 - 不把 Discussion 上的 `Special=Reminder` 成功响应视为有效警告：它可以生成无警告标记的普通评论。
 - `ID`、`UserID` 的空字符串来自网页请求形式，不是身份授权手段。评论作者由正常登录身份决定。
 
 成功 `Data` 是评论对象。保留返回的评论 ID；警告正文可能由服务端加工，不能仅靠提交正文完全相等定位。Locked 警告的删除由服务端管理权限控制。
+
+回复指定用户的调用示例，ChatGPT插件使用write_community。
+
+```json
+{"path":"/Messages/PostComment","body":{"TargetID":"<作品摘要ID>","TargetType":"Discussion","Content":"收到，问题已修正。","ReplyID":"<原评论的UserID>"}}
+```
+
+回复关系通过ReplyID表达，正文可同时保留用户引用。沿用当前作品或留言板的TargetID和TargetType，提交后按返回的评论ID在原位置核对结果。
 
 ### POST /Messages/RemoveComment
 
@@ -316,7 +324,15 @@ python scripts/community_cli.py --account <用户ID> knowledge --summary-id <摘
 
 ### POST /Messages/GetMessage
 
-请求：`{MessageID:string}`。它执行通知读取处理，返回 User、Statistic、Backpack、Bonuses、Relation 等数据包，不是消息正文。
+确认单条消息已读，必填MessageID，值取GetMessages返回的目标消息条目.ID。正文由GetMessages条目和Templates提供，GetMessage返回更新后的UserPackage。
+
+ChatGPT插件使用write_community调用。
+
+```json
+{"path":"/Messages/GetMessage","body":{"MessageID":"<消息条目的ID>"}}
+```
+
+通用版调用CommunityClient.request；使用CommunityReads.call_batch时设置write=True。检查业务Status=200，再按同一消息ID读回列表条目，确认Unread为非零读取时间戳。
 
 - 通知 `Unread=0`：未读；读取后为非零读取时间戳。
 - `Handled` 是另一个状态，读取不等于处理邀请。
