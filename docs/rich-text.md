@@ -28,6 +28,8 @@
 
 先核对目标与当前Category，再填实际ID。两个作品引用标签均使用**摘要ID**，不使用Summary.ContentID保存ID。GetSummary虽然把请求字段命名为ContentID，这里仍传摘要ID；GetExperiment才使用保存ID。用户昵称和展示标题是可读文字，不能代替ID。
 
+user标签负责用户引用。需要回复通知时，PostComment同时填写ReplyID，并保留可被服务器识别的正文@完整昵称。CommunityClient和ChatGPT插件会自动核对昵称并补齐该格式，具体字段见[回复与通知](comments.md#回复指定用户)。
+
 作品移动分区后，按当前Category选择experiment或discussion标签。引用时只写必要的显示文字，不为了取得链接而将完整实验载入上下文。用户引用应符合本次任务及社区规则。
 
 ## 组合效果

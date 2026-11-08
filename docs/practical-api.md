@@ -278,8 +278,8 @@ python scripts/community_cli.py --account <用户ID> knowledge --summary-id <摘
 ```
 
 - `TargetID`：留言板用户 ID，或作品摘要 ID。
-- `ReplyID`填被回复用户的ID，取原评论的UserID。普通留言填空字符串。原评论.ID用于CommentID，作品Summary.ID或留言板用户ID用于TargetID。
-- `Content`：文本和社区富文本。用户引用形式为 `<user=用户ID>显示名</user>`。回复或 @ 可以产生通知，包括本人引用。
+- `ReplyID`填被回复用户的ID，取原评论的UserID，配合正文中可识别的@完整昵称产生回复通知。普通留言填空字符串。原评论.ID用于CommentID，作品Summary.ID或留言板用户ID用于TargetID。
+- `Content`支持文本和社区富文本。回复正文使用`回复@完整昵称: 正文`。user标签用于显示和跳转用户，通知触发采用正文中的@昵称解析。
 - `Special=null`：普通评论。`Special=Reminder` 且 `TargetType=User`：管理警告，会出现 Reminder、Locked 标记；需要正常管理权限。
 - 不把 Discussion 上的 `Special=Reminder` 成功响应视为有效警告：它可以生成无警告标记的普通评论。
 - `ID`、`UserID` 的空字符串来自网页请求形式，不是身份授权手段。评论作者由正常登录身份决定。
@@ -289,10 +289,10 @@ python scripts/community_cli.py --account <用户ID> knowledge --summary-id <摘
 回复指定用户的调用示例，ChatGPT插件使用write_community。
 
 ```json
-{"path":"/Messages/PostComment","body":{"TargetID":"<作品摘要ID>","TargetType":"Discussion","Content":"收到，问题已修正。","ReplyID":"<原评论的UserID>"}}
+{"path":"/Messages/PostComment","body":{"TargetID":"<作品摘要ID>","TargetType":"Discussion","Content":"回复@目标完整昵称: 收到，问题已修正。","ReplyID":"<原评论的UserID>"}}
 ```
 
-回复关系通过ReplyID表达，正文可同时保留用户引用。沿用当前作品或留言板的TargetID和TargetType，提交后按返回的评论ID在原位置核对结果。
+CommunityClient.request和ChatGPT插件write_community会自动读取ReplyID对应的当前昵称，核对用户ID并补齐@引用。沿用当前作品或留言板的TargetID和TargetType。仅填写ReplyID会发表普通文字，通知触发还需要可识别的正文@昵称；ReplyID为空时，正文@昵称产生提及通知。昵称含标点可能被截断，辅助层在无法安全定位时返回具体错误。提交后按返回的评论ID读回结果；通知核验使用收件账号GetMessages中的Fields.CommentID。
 
 ### POST /Messages/RemoveComment
 

@@ -1,6 +1,7 @@
 """HTTPS adapter for CommunityReads. Credentials stay inside this process."""
 import gzip
 import json
+import re
 from threading import RLock
 from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
@@ -36,6 +37,40 @@ class CommunityError(RuntimeError):
         return {'ok': False, 'error': self.kind, 'httpStatus': self.http_status,
                 'Status': self.status, 'Message': self.code, 'Data': self.data,
                 **({'context':self.context} if self.context else {})}
+
+
+def prepare_reply_body(request, body):
+    """Resolve the recipient and keep the raw mention needed by reply notifications."""
+    recipient_id = body.get('ReplyID')
+    if not recipient_id:
+        return body
+    if not isinstance(recipient_id, str):
+        raise ValueError('ReplyID must be a user ID string')
+    content = body.get('Content')
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError('Reply content must be a nonempty string')
+
+    recipient = request('/Users/GetUser', {'ID': recipient_id})['Data']['User']
+    nickname = recipient.get('Nickname')
+    if recipient.get('ID') != recipient_id or not isinstance(nickname, str):
+        raise CommunityError(None, 'reply_recipient_invalid')
+    if not re.fullmatch(r'\w+', nickname):
+        raise CommunityError(None, 'reply_nickname_not_addressable', data={
+            'replyUserId': recipient_id,
+            'nickname': nickname,
+            'reason': '昵称含服务端@解析可能截断的符号，请先确认可完整定位的昵称。',
+        })
+    resolved = request('/Users/GetUser', {'Name': nickname})['Data']['User']
+    if resolved.get('ID') != recipient_id:
+        raise CommunityError(None, 'reply_recipient_mismatch', data={
+            'replyUserId': recipient_id,
+            'resolvedUserId': resolved.get('ID'),
+            'nickname': nickname,
+        })
+
+    if re.search('@' + re.escape(nickname) + r'(?!\w)', content):
+        return body
+    return {**body, 'Content': f'回复@{nickname}: {content}'}
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -126,6 +161,8 @@ class CommunityClient:
 
     def request(self, path, body):
         """Return business data with credential fields removed. No automatic retries."""
+        if path == '/Messages/PostComment':
+            body = prepare_reply_body(self.request, body)
         return redact(self._exchange(path, body))
 
     def login(self, login=None, password=None):

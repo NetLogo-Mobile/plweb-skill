@@ -100,17 +100,17 @@ POST /Messages/PostComment
 | `TargetID` | string | 评论所在位置，作品用Summary.ID摘要ID，留言板用所属用户ID |
 | `TargetType` | string | `"Experiment"`、`"Discussion"` 或 `"User"` |
 | `Content` | string | 评论正文，支持社区富文本 |
-| `ReplyID` | string | 被回复用户的ID，取原评论的UserID。普通留言填空字符串 |
+| `ReplyID` | string | 被回复用户的ID，取原评论的UserID，与正文中可识别的@完整昵称配合产生回复通知。普通留言填空字符串 |
 
 ### 回复指定用户
 
-在已有作品或留言板下回复某位评论者时，沿用所在位置的TargetID和TargetType，将原评论的UserID写入ReplyID。
+在已有作品或留言板下回复某位评论者时，沿用所在位置的TargetID和TargetType，将原评论的UserID写入ReplyID，并保留正文中的`回复@完整昵称: `。
 
 ```json
 {
   "TargetID": "<当前作品的摘要ID>",
   "TargetType": "Discussion",
-  "Content": "收到，你提到的问题已经修正。",
+  "Content": "回复@目标完整昵称: 收到，你提到的问题已经修正。",
   "ReplyID": "<原评论的UserID>"
 }
 ```
@@ -121,7 +121,16 @@ POST /Messages/PostComment
 | 原评论.ID → CommentID | 定位、分页或删除评论 |
 | 作品Summary.ID或留言板用户ID → TargetID | 指定评论所在位置 |
 
-回复关系通过ReplyID表达。正文中的`@昵称`和`<user=用户ID>显示名</user>`用于文字或用户引用，正式回复时同时填写ReplyID。ChatGPT插件用write_community调用PostComment，通用版用CommunityClient.request或CommunityReads.call_batch(write=True)。成功后保留返回的评论ID，并在原位置读回核对正文与返回的回复信息。
+CommunityClient.request和ChatGPT插件write_community会按ReplyID读取当前昵称、核对昵称定位的用户ID，并自动补齐正文中的@完整昵称。已有完整@引用时沿用原正文。CommunityReads.call_batch(write=True)复用相同流程。直接发送HTTP请求时，按上例同时填写ReplyID与正文@引用。
+
+| 提交内容 | 通知效果 |
+|---|---|
+| ReplyID加可识别的正文@昵称 | 产生回复通知 |
+| ReplyID为空，正文有可识别的@昵称 | 产生提及通知 |
+| 仅填写ReplyID，正文为普通文字 | 评论会发布，回复通知未触发 |
+| 仅写user富文本标签 | 用于显示和跳转用户 |
+
+服务器会解析正文中的@昵称，昵称中的标点可能导致截断或同名误匹配。辅助层在发布前核对目标，无法安全定位时返回具体错误。成功后保留评论ID并在原位置读回正文。需要核实通知时，从收件账号GetMessages中查找Fields.CommentID等于本条评论ID的条目，区分回复与提及模板。
 
 ### 响应
 
