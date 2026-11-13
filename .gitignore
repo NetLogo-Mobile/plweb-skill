@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+*.plsav
+tests/
+test_*.py
+*_test.py
