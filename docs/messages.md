@@ -154,4 +154,4 @@ POST /Messages/SendMessages
 
 仓库辅助层把GetMessages与GetMessage视作有状态操作，调用通用批量方法时须显式write=True并有相应任务授权；这不改变接口仍为“消息读取”的业务名称。消息列表使用Skip条数分页；完整性以实际返回数量和停止原因为准。
 
-SendMessages每批用户总计最多20个。模板正文的本地渲染规则见 [通知](practical-api.md#7-通知)。
+SendMessages每批用户总计最多20个。模板正文的本地渲染规则见 [通知](practical-api.md#7-通知)。`Notifications/Get` 实测会偶发不返回，单次尝试失败即放弃，不要循环重试；靠 GetMessages 覆盖主要通知，更多现场差异见 [实测补充](field-notes.md#5-收件箱messagesgetmessages的正确读法)。
