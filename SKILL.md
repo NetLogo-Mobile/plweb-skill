@@ -13,12 +13,15 @@ description: 通过物理实验室 AR / Physics Lab 社区 API 查询作品、�
 
 建模使用本包 `vendor/physicslab`，无需另行下载库。长期记忆使用本机SQLite，见 [本地记忆](docs/memory.md)；本技能不会将笔记上传云端。ChatGPT插件有独立工具版入口，不将其云端工具当作本地Python方法。
 
+封装方法没有覆盖全部接口。**缺少现成方法或子命令时不要回复"做不到"，直接按文档自己发请求**（换头像、改签名、签到、留言板评论、隐藏作品等单个读写操作都适用），见 [按文档自行执行](docs/by-hand.md)；现场实测的坑见 [实测补充](docs/field-notes.md)。
+
 ## 通常怎样完成任务
 
 1. 主动判断是否需要记忆，不等用户提醒：继续之前的任务、维护已有作品、涉及用户纠正/偏好、复用接口经验或遇到重复错误时，先检索相关本地笔记。单次独立查值且无历史依赖时可跳过。再依据链接、ID、作者、完整昵称或通知核对对象；完整昵称用 `GetUser(Name)`，作品名和模糊昵称在有界候选中匹配。
 2. 优先使用 `CommunityClient`、`CommunityReads`、`CommunityActions` 的分页、图片和发布方法。已有明确授权时继续执行任务范围内的操作，不重复请求同一确认。
 3. 用户未指定的发布、分区、标签和互动细节，先查阅当前适用的社区规则（相关导航、公告或规则作品），再据此决定；不凭旧笔记编造规则。
 4. 同时检查 HTTP 状态、JSON 的 `Status/Message/Data` 和读回结果。批量任务逐项报告完成、失败及未执行；保留真实错误，隐藏凭据。写入超时先核对已有结果，避免重复发布或扣币。确认可复用经验、收到用户纠正或产生跨对话后续事项时，自行用本地memory命令更新同主题笔记，无需另问是否记住；普通请求流水不记录。
+5. 现成方法不够用时按文档自行调用，不臆造路径和字段：`405/404`是路径不存在、`Input.Field.Missing`是字段问题、`User.Not.Allowed`可能是临时限流而非封号。自行调用同样受请求间隔、并发上限、写后读回和凭据脱敏约束，见 [按文档自行执行](docs/by-hand.md)。
 
 ## 必须保持一致的约定
 
@@ -41,6 +44,8 @@ description: 通过物理实验室 AR / Physics Lab 社区 API 查询作品、�
 | 读实验模型 | `inspect_experiments`、`experiment_view.py` | [大实验处理](docs/large-experiments.md) |
 | 做实验、生成音乐、发布 | `experiment_example.py`、`music_experiment.py` / `CommunityActions.publish` | [建模与发布](docs/experiments.md)、[音乐](docs/music.md) |
 | 头像与封面 | `CommunityActions.set_avatar/set_cover` | [图片格式、传输、索引与验证](docs/uploads.md) |
+| 没有现成方法（换头像、签到、改签名、隐藏等） | 按文档自行调用接口 | [自行执行与示例](docs/by-hand.md)、[字段速查](docs/interface-notes.md) |
+| 接口行为和文档对不上 | 按较晚的实测判断 | [实测补充](docs/field-notes.md) |
 | 富文本、字体样式、用户及作品引用 | 在文本字段直接使用标签 | [颜色、字号、组合排版与摘要ID引用](docs/rich-text.md) |
 | 评论、回复、警告、通知 | `CommunityReads`、通用请求 | [评论](docs/comments.md)、[通知](docs/messages.md) |
 | 合作者、精选、知识库、隐藏/删除、封禁 | `CommunityActions` | [操作权限与结果](docs/permissions.md)、[字段速查](docs/interface-notes.md)、[完整业务参数](docs/practical-api.md) |
